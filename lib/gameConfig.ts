@@ -1,6 +1,6 @@
 export const GAME_CONFIG = {
   player: {
-    modelPath: "/models/yeowl.glb",
+    modelPath: "/models/yeowl_pre.glb",
     /** 모델 전체 크기 배율 */
     scale: 1,
     /** 초당 이동 속도 (world unit / sec) */
