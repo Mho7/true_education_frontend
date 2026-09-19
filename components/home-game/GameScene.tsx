@@ -35,11 +35,12 @@ export default function GameScene({ onActiveInteractionChange, onInteract }: Gam
         camera.lookAt(...GAME_CONFIG.camera.target);
       }}
     >
-      <color attach="background" args={["#eaf4f4"]} />
-      <ambientLight intensity={0.7} />
+      <color attach="background" args={["#f7efe1"]} />
+      <ambientLight intensity={0.75} color="#fff2df" />
       <directionalLight
-        position={[5, 8, 4]}
-        intensity={1.2}
+        position={[6, 9, 5]}
+        intensity={1.3}
+        color="#ffe9c7"
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
