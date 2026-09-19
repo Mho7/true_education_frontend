@@ -19,7 +19,7 @@ export default class GameErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-full w-full items-center justify-center bg-amber-50 px-6 text-center text-sm text-amber-700">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-amber-50 px-6 text-center text-sm text-amber-700">
           3D 홈 화면을 불러오지 못했습니다. 브라우저 콘솔 로그를 확인해주세요.
         </div>
       );
