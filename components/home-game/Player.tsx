@@ -41,13 +41,16 @@ export default function Player({ onActiveInteractionChange, onInteract }: Player
   const { model, groundOffset } = useMemo(() => {
     const cloned = scene.clone(true);
 
-    // 이 GLB의 scene root는 [Tori_Hyper3D_Today, Yeowl_Rig] 두 개다.
-    // Tori_Hyper3D_Today는 리깅 이전(구버전) body가 그대로 남아있는 것이라
-    // 지우지 않으면 Yeowl_Rig와 겹쳐서 두 마리로 보인다. 애니메이션이 붙은
-    // Yeowl_Rig만 남긴다.
-    const staleUnriggedBody = cloned.getObjectByName("Tori_Hyper3D_Today");
-    if (staleUnriggedBody) {
-      cloned.remove(staleUnriggedBody);
+    // 이 GLB는 export할 때마다 리깅 안 된 구버전 파츠(body 또는 액세서리)가
+    // scene root에 같이 남아있는 경우가 있다 (예: Tori_Bowtie/Tori_Glasses가
+    // Yeowl_Rig 안의 리깅된 사본과 중복). 애니메이션이 실제로 붙는 "Yeowl_Rig"
+    // 계층만 남기고 나머지 top-level 잔여물은 전부 제거한다.
+    const RIG_ROOT_NAME = "Yeowl_Rig";
+    const hasRigRoot = cloned.children.some((child) => child.name === RIG_ROOT_NAME);
+    if (hasRigRoot) {
+      [...cloned.children]
+        .filter((child) => child.name !== RIG_ROOT_NAME)
+        .forEach((stale) => cloned.remove(stale));
     }
 
     const box = new THREE.Box3().setFromObject(cloned);
