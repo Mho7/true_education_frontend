@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import { GAME_CONFIG } from "@/lib/gameConfig";
 import { INTERACTIVE_OBJECTS } from "@/lib/interactiveObjects";
@@ -17,6 +17,9 @@ type PlayerProps = {
 };
 
 const ROTATION_LERP_SPEED = 10;
+const ANIMATION_FADE_SECONDS = 0.25;
+const IDLE_CLIP = "Idle";
+const WALK_CLIP = "Walk";
 
 /** target 각도를 current와 가장 가까운 방향(최단 경로)으로 감아준다 */
 function wrapTowards(target: number, current: number) {
@@ -31,15 +34,38 @@ export default function Player({ onActiveInteractionChange, onInteract }: Player
   const facingRef = useRef(0);
   const activeIdRef = useRef<string | null>(null);
 
-  const { scene } = useGLTF(GAME_CONFIG.player.modelPath);
+  const { scene, animations } = useGLTF(GAME_CONFIG.player.modelPath);
   const { getMovement, consumeActionPressed } = useKeyboardControls();
 
   // GLB를 복제하고 bounding box를 계산해 발이 바닥(y=0)에 닿도록 자동 보정한다.
   const { model, groundOffset } = useMemo(() => {
     const cloned = scene.clone(true);
+
+    // 이 GLB의 scene root는 [Tori_Hyper3D_Today, Yeowl_Rig] 두 개다.
+    // Tori_Hyper3D_Today는 리깅 이전(구버전) body가 그대로 남아있는 것이라
+    // 지우지 않으면 Yeowl_Rig와 겹쳐서 두 마리로 보인다. 애니메이션이 붙은
+    // Yeowl_Rig만 남긴다.
+    const staleUnriggedBody = cloned.getObjectByName("Tori_Hyper3D_Today");
+    if (staleUnriggedBody) {
+      cloned.remove(staleUnriggedBody);
+    }
+
     const box = new THREE.Box3().setFromObject(cloned);
     return { model: cloned, groundOffset: -box.min.y };
   }, [scene]);
+
+  // clone된 model 위에 애니메이션을 바인딩한다 (원본 scene이 아니라 model 기준이어야
+  // 클립의 노드 이름이 실제로 렌더링되는 계층 구조와 일치한다).
+  const { actions } = useAnimations(animations, model);
+  const isMovingRef = useRef(false);
+
+  useEffect(() => {
+    actions[IDLE_CLIP]?.reset().fadeIn(ANIMATION_FADE_SECONDS).play();
+    return () => {
+      actions[IDLE_CLIP]?.fadeOut(ANIMATION_FADE_SECONDS);
+      actions[WALK_CLIP]?.fadeOut(ANIMATION_FADE_SECONDS);
+    };
+  }, [actions]);
 
   const colliders = useMemo(
     () =>
@@ -70,6 +96,15 @@ export default function Player({ onActiveInteractionChange, onInteract }: Player
     const { speed, rotationOffset } = GAME_CONFIG.player;
     const radius = GAME_CONFIG.collision.playerRadius;
     const isMoving = x !== 0 || z !== 0;
+
+    // 상태가 실제로 바뀔 때만 crossfade (매 프레임 재생/재시작 방지)
+    if (isMoving !== isMovingRef.current) {
+      isMovingRef.current = isMoving;
+      const nextClip = isMoving ? WALK_CLIP : IDLE_CLIP;
+      const prevClip = isMoving ? IDLE_CLIP : WALK_CLIP;
+      actions[nextClip]?.reset().fadeIn(ANIMATION_FADE_SECONDS).play();
+      actions[prevClip]?.fadeOut(ANIMATION_FADE_SECONDS);
+    }
 
     if (isMoving) {
       const targetRotation = Math.atan2(x, z) + rotationOffset;
