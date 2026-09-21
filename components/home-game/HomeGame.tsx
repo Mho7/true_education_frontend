@@ -1,17 +1,21 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import RoomBackground from "./RoomBackground";
 import GameCanvas from "./GameCanvas";
-import RoomForeground from "./RoomForeground";
 import GameErrorBoundary from "./GameErrorBoundary";
 import InteractionUI from "./InteractionUI";
-import { INTERACTIVE_OBJECTS } from "@/lib/interactiveObjects";
+import CollisionDebugOverlay from "./CollisionDebugOverlay";
+import type { InteractionZone } from "@/lib/roomColliders";
+import { GAME_DEBUG } from "@/lib/gameConfig";
 
 export default function HomeGame() {
   const router = useRouter();
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [active, setActive] = useState<InteractionZone | null>(null);
+  // Player.tsx가 매 프레임 발 위치(정규화 좌표)를 써넣는 ref. 디버그 오버레이가
+  // 리렌더 없이 이 값을 읽어 파란 점을 움직인다.
+  const footNormRef = useRef({ x: 0.5, y: 0.5 });
 
   const handleInteract = useCallback(
     (route: string) => {
@@ -20,20 +24,22 @@ export default function HomeGame() {
     [router]
   );
 
-  const active = INTERACTIVE_OBJECTS.find((obj) => obj.id === activeId) ?? null;
-
   return (
     <div className="relative h-screen w-full overflow-hidden bg-[#f7efe1]">
       {/* Layer 1 */}
-      <RoomBackground />
+      {!GAME_DEBUG.hideRoomLayers && <RoomBackground />}
 
       {/* Layer 2 */}
       <GameErrorBoundary>
-        <GameCanvas onActiveInteractionChange={setActiveId} onInteract={handleInteract} />
+        <GameCanvas
+          footNormRef={footNormRef}
+          onActiveInteractionChange={setActive}
+          onInteract={handleInteract}
+        />
       </GameErrorBoundary>
 
-      {/* Layer 3 */}
-      <RoomForeground />
+      {/* Layer 3 (debug only) */}
+      {GAME_DEBUG.debugCollision && <CollisionDebugOverlay footNormRef={footNormRef} />}
 
       {/* Layer 4 */}
       <InteractionUI active={active} />

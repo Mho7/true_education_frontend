@@ -1,9 +1,9 @@
 "use client";
 
-import type { InteractiveObjectConfig } from "@/lib/interactiveObjects";
+import type { InteractionZone } from "@/lib/roomColliders";
 
 type InteractionUIProps = {
-  active: InteractiveObjectConfig | null;
+  active: InteractionZone | null;
 };
 
 export default function InteractionUI({ active }: InteractionUIProps) {

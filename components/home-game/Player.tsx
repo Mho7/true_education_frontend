@@ -1,45 +1,69 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
-import { GAME_CONFIG } from "@/lib/gameConfig";
-import { INTERACTIVE_OBJECTS } from "@/lib/interactiveObjects";
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { GAME_CONFIG, GAME_DEBUG } from "@/lib/gameConfig";
+import {
+  isBlocked as isBlockedByRect,
+  findInteractionZone,
+  BACKGROUND_IMAGE_SIZE,
+  type InteractionZone,
+} from "@/lib/roomColliders";
 import { useKeyboardControls } from "@/hooks/useKeyboardControls";
-import { circleIntersectsBox, makeBoxCollider } from "@/lib/collision";
+import { worldToImagePixel } from "@/lib/screenProjection";
+import { tuneYeowliMaterials } from "@/lib/tuneYeowliMaterials";
 
 useGLTF.preload(GAME_CONFIG.player.modelPath);
 
 type PlayerProps = {
-  onActiveInteractionChange: (id: string | null) => void;
+  footNormRef: RefObject<{ x: number; y: number }>;
+  shadowRef: RefObject<THREE.Mesh | null>;
+  onActiveInteractionChange: (zone: InteractionZone | null) => void;
   onInteract: (route: string) => void;
 };
 
-const ROTATION_LERP_SPEED = 10;
+// 회전 감쇠 계수. 1 - exp(-TURN_SPEED * delta) 형태로 써서 프레임레이트와
+// 무관하게 항상 같은 체감 속도로 목표 각도에 수렴한다 (naive lerp(a,b,speed*delta)는
+// delta가 크게 튀는 프레임에서 오버슈트/불일치가 생길 수 있음).
+const TURN_SPEED = 10;
 const ANIMATION_FADE_SECONDS = 0.25;
-const IDLE_CLIP = "Idle";
-const WALK_CLIP = "Walk";
+// GLB를 다시 export하면 클립 이름이 바뀔 수 있으므로, 우선순위 후보 목록을 먼저 찾고
+// 없으면 이름에 키워드가 포함된 클립을 fallback으로 탐색한다 (하드코딩 가정 금지).
+const IDLE_CLIP_CANDIDATES = ["Yeoul_Idle", "Idle"];
+const WALK_CLIP_CANDIDATES = ["Yeoul_Walk", "Walk", "Walking"];
 
-/** target 각도를 current와 가장 가까운 방향(최단 경로)으로 감아준다 */
-function wrapTowards(target: number, current: number) {
-  let delta = (target - current) % (Math.PI * 2);
-  if (delta > Math.PI) delta -= Math.PI * 2;
-  if (delta < -Math.PI) delta += Math.PI * 2;
-  return current + delta;
+/** 후보 이름을 우선 탐색하고, 없으면 이름에 키워드가 포함된 클립을 찾는다. */
+function resolveClipName(names: string[], candidates: string[], fallbackKeyword: string): string | null {
+  const exact = candidates.find((c) => names.includes(c));
+  if (exact) return exact;
+  return names.find((n) => n.toLowerCase().includes(fallbackKeyword)) ?? null;
 }
 
-export default function Player({ onActiveInteractionChange, onInteract }: PlayerProps) {
+export default function Player({ footNormRef, shadowRef, onActiveInteractionChange, onInteract }: PlayerProps) {
+  // 실제 월드 이동/충돌을 담당하는 root. 회전은 이 그룹이 아니라 안쪽 modelRef가 맡는다.
   const groupRef = useRef<THREE.Group>(null!);
-  const facingRef = useRef(0);
+  // 여울이 모델의 "바라보는 방향" 회전만 담당하는 그룹 (position/충돌과 분리).
+  const modelRef = useRef<THREE.Group>(null!);
   const activeIdRef = useRef<string | null>(null);
+  // 매 프레임 새 객체를 만들지 않도록 재사용
+  const targetQuaternionRef = useRef(new THREE.Quaternion());
+  const targetEulerRef = useRef(new THREE.Euler());
 
+  const { camera, size } = useThree();
   const { scene, animations } = useGLTF(GAME_CONFIG.player.modelPath);
   const { getMovement, consumeActionPressed } = useKeyboardControls();
 
   // GLB를 복제하고 bounding box를 계산해 발이 바닥(y=0)에 닿도록 자동 보정한다.
   const { model, groundOffset } = useMemo(() => {
-    const cloned = scene.clone(true);
+    // scene.clone(true) (기본 Object3D.clone)은 SkinnedMesh의 skeleton을 복제하지 않고
+    // 원본 뼈를 그대로 참조한다 (three.js SkinnedMesh.copy()가 skeleton을 참조로만 복사).
+    // 그 결과 애니메이션 믹서가 "복제된" 뼈를 움직여도 실제 렌더링에 쓰이는 skeleton은
+    // 여전히 "원본" 뼈를 가리켜서 화면에 전혀 반영되지 않는다.
+    // SkeletonUtils.clone은 skeleton과 bone 참조를 전부 새로 연결해준다.
+    const cloned = cloneSkinned(scene) as THREE.Object3D;
 
     // 이 GLB는 export할 때마다 리깅 안 된 구버전 파츠(body 또는 액세서리)가
     // scene root에 같이 남아있는 경우가 있다 (예: Tori_Bowtie/Tori_Glasses가
@@ -53,116 +77,211 @@ export default function Player({ onActiveInteractionChange, onInteract }: Player
         .forEach((stale) => cloned.remove(stale));
     }
 
+    // Blender Base Color는 그대로 두고, 웹 렌더링(색공간/조명/톤매핑)에 맞게 roughness/
+    // emissive/envMapIntensity만 보정한다. clone 직후 1회만 실행 (useMemo라 리렌더/프레임마다 재실행 안 됨).
+    tuneYeowliMaterials(cloned);
+
     const box = new THREE.Box3().setFromObject(cloned);
     return { model: cloned, groundOffset: -box.min.y };
   }, [scene]);
 
   // clone된 model 위에 애니메이션을 바인딩한다 (원본 scene이 아니라 model 기준이어야
   // 클립의 노드 이름이 실제로 렌더링되는 계층 구조와 일치한다).
-  const { actions } = useAnimations(animations, model);
+  const { actions, names } = useAnimations(animations, model);
   const isMovingRef = useRef(false);
 
+  const idleClip = useMemo(() => resolveClipName(names, IDLE_CLIP_CANDIDATES, "idle"), [names]);
+  const walkClip = useMemo(() => resolveClipName(names, WALK_CLIP_CANDIDATES, "walk"), [names]);
+
+  // GLB 진단: 애니메이션 클립/본 트랙, SkinnedMesh 여부를 1회만 콘솔에 출력한다.
   useEffect(() => {
-    actions[IDLE_CLIP]?.reset().fadeIn(ANIMATION_FADE_SECONDS).play();
+    if (!GAME_DEBUG.logGLB) return;
+    console.groupCollapsed("[GLB] yeowl.glb 진단");
+    console.log("animations.length =", animations.length);
+    animations.forEach((clip) => {
+      console.log(`  clip "${clip.name}" tracks=${clip.tracks.length}:`, clip.tracks.map((t) => t.name));
+    });
+    let meshCount = 0;
+    model.traverse((obj) => {
+      const mesh = obj as THREE.SkinnedMesh;
+      if (mesh.isMesh) {
+        meshCount++;
+        console.log(
+          `  mesh "${obj.name}" isSkinnedMesh=${!!mesh.isSkinnedMesh} skeleton=${!!mesh.skeleton} morphTargets=${!!mesh.morphTargetDictionary}`
+        );
+      }
+    });
+    if (animations.length === 0) {
+      console.warn("[GLB] animations.length === 0 → GLB export에 애니메이션이 없습니다 (코드 문제 아님, Blender export 확인 필요).");
+    }
+    if (meshCount === 0) {
+      console.warn("[GLB] 렌더링 가능한 Mesh를 찾지 못했습니다.");
+    } else {
+      model.traverse((obj) => {
+        const mesh = obj as THREE.SkinnedMesh;
+        if (mesh.isMesh && !mesh.isSkinnedMesh) {
+          console.warn(`[GLB] mesh "${obj.name}"가 SkinnedMesh가 아닙니다 → Skin Binding 문제 가능성.`);
+        }
+      });
+    }
+    console.log("resolved idleClip =", idleClip, "/ walkClip =", walkClip);
+    if (!idleClip) console.warn("[GLB] Idle 애니메이션 후보를 찾지 못했습니다 → Idle: NOT AVAILABLE 처리.");
+    if (!walkClip) console.warn("[GLB] Walk 애니메이션 후보를 찾지 못했습니다.");
+    console.groupEnd();
+  }, [model, animations, idleClip, walkClip]);
+
+  useEffect(() => {
+    if (idleClip) actions[idleClip]?.reset().fadeIn(ANIMATION_FADE_SECONDS).play();
+    if (walkClip) actions[walkClip]?.setEffectiveTimeScale(0.8);
     return () => {
-      actions[IDLE_CLIP]?.fadeOut(ANIMATION_FADE_SECONDS);
-      actions[WALK_CLIP]?.fadeOut(ANIMATION_FADE_SECONDS);
+      if (idleClip) actions[idleClip]?.fadeOut(ANIMATION_FADE_SECONDS);
+      if (walkClip) actions[walkClip]?.fadeOut(ANIMATION_FADE_SECONDS);
     };
-  }, [actions]);
+  }, [actions, idleClip, walkClip]);
 
-  const colliders = useMemo(
-    () =>
-      INTERACTIVE_OBJECTS.map((obj) => ({
-        id: obj.id,
-        box: makeBoxCollider(obj.position, obj.colliderSize),
-      })),
-    []
-  );
-
-  const bounds = useMemo(() => {
-    const halfWidth = GAME_CONFIG.room.width / 2;
-    const halfDepth = GAME_CONFIG.room.depth / 2;
-    const radius = GAME_CONFIG.collision.playerRadius;
-    return {
-      minX: -halfWidth + radius,
-      maxX: halfWidth - radius,
-      minZ: -halfDepth + radius,
-      maxZ: halfDepth - radius,
-    };
+  // isometric 카메라 기준 "화면상 위/오른쪽" 방향을 world 벡터로 미리 구해둔다.
+  // (카메라는 고정이라 GAME_CONFIG 값만으로 한 번만 계산하면 된다)
+  const cameraBasis = useMemo(() => {
+    const camPos = new THREE.Vector3(...GAME_CONFIG.camera.position);
+    const camTarget = new THREE.Vector3(...GAME_CONFIG.camera.target);
+    const forward = camTarget.clone().sub(camPos);
+    forward.y = 0;
+    forward.normalize();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    return { forward, right };
   }, []);
+
+  // world 발 위치(x, 0, z) -> room-background.png 기준 정규화 좌표(0~1).
+  // lib/roomColliders.ts의 COLLIDERS/INTERACTION_ZONES가 전부 이 좌표계로 정의되어 있다.
+  const worldToNormalized = (x: number, z: number) => {
+    const pixel = worldToImagePixel(
+      new THREE.Vector3(x, 0, z),
+      camera,
+      size.width,
+      size.height,
+      BACKGROUND_IMAGE_SIZE.width,
+      BACKGROUND_IMAGE_SIZE.height
+    );
+    return { x: pixel.x / BACKGROUND_IMAGE_SIZE.width, y: pixel.y / BACKGROUND_IMAGE_SIZE.height };
+  };
+
+  // 캐릭터 "발 중앙점" 한 점만으로 판정한다 (원 둘레 샘플링 없음) — 가구/벽 footprint 충돌.
+  const isBlockedByRoom = (x: number, z: number) => {
+    if (size.width === 0 || size.height === 0) return false;
+    const norm = worldToNormalized(x, z);
+    return isBlockedByRect(norm.x, norm.y);
+  };
+
+  const isBlocked = (x: number, z: number) => {
+    if (GAME_DEBUG.disableCollision) return false;
+    return isBlockedByRoom(x, z);
+  };
+
+  const lastCollisionLogRef = useRef<string | null>(null);
+  const lastMovementLogRef = useRef<boolean | null>(null);
 
   useFrame((_, delta) => {
     const group = groupRef.current;
     if (!group) return;
 
-    const { x, z } = getMovement();
+    const { x: inputX, z: inputZ } = getMovement();
     const { speed, rotationOffset } = GAME_CONFIG.player;
-    const radius = GAME_CONFIG.collision.playerRadius;
-    const isMoving = x !== 0 || z !== 0;
+    const hasInput = inputX !== 0 || inputZ !== 0;
+
+    // WASD 축을 world 축이 아니라 "화면상 방향"(카메라 forward/right)으로 변환한다.
+    const moveX = cameraBasis.right.x * inputX - cameraBasis.forward.x * inputZ;
+    const moveZ = cameraBasis.right.z * inputX - cameraBasis.forward.z * inputZ;
+
+    if (hasInput && modelRef.current) {
+      const targetAngle = Math.atan2(moveX, moveZ) + rotationOffset;
+      targetEulerRef.current.set(0, targetAngle, 0);
+      targetQuaternionRef.current.setFromEuler(targetEulerRef.current);
+      // 지수 감쇠: quaternion.slerp이 알아서 최단 경로로 회전하므로 wrap 처리가 불필요하다.
+      const rotationAmount = 1 - Math.exp(-TURN_SPEED * delta);
+      modelRef.current.quaternion.slerp(targetQuaternionRef.current, rotationAmount);
+    }
+
+    let nextX = group.position.x + moveX * speed * delta;
+    let nextZ = group.position.z + moveZ * speed * delta;
+
+    // X축 이동 먼저 시도 후 충돌 시 되돌리기 (축 분리 방식 -> 벽을 따라 자연스럽게 미끄러짐)
+    // 벽/가구 판정은 lib/roomColliders.ts의 이미지 정규화 좌표계 하나로만 한다 — 여기서
+    // world 좌표를 다시 별도의 사각형(GAME_CONFIG.room)으로 clamp하면 안 된다. 카메라가
+    // isometric이라 world XZ 사각형과 화면상 벽 경계가 전혀 일치하지 않기 때문
+    // (예: world 우측 벽 근처 + 앞쪽 끝 조합이 화면상으로는 이미 벽을 한참 지나 화면 밖으로
+    // 나가는 지점에 투영됨) — 실제로 이게 "여울이가 벽 위로 올라가는" 버그의 원인이었다.
+    if (isBlocked(nextX, group.position.z)) {
+      nextX = group.position.x;
+    }
+
+    if (isBlocked(nextX, nextZ)) {
+      nextZ = group.position.z;
+    }
+
+    // 실제로 위치가 바뀐 경우에만 Walk, 키를 놓았거나 충돌로 막혔으면 Idle로 복귀
+    const isMoving = nextX !== group.position.x || nextZ !== group.position.z;
 
     // 상태가 실제로 바뀔 때만 crossfade (매 프레임 재생/재시작 방지)
     if (isMoving !== isMovingRef.current) {
       isMovingRef.current = isMoving;
-      const nextClip = isMoving ? WALK_CLIP : IDLE_CLIP;
-      const prevClip = isMoving ? IDLE_CLIP : WALK_CLIP;
-      actions[nextClip]?.reset().fadeIn(ANIMATION_FADE_SECONDS).play();
-      actions[prevClip]?.fadeOut(ANIMATION_FADE_SECONDS);
+      const nextClipName = isMoving ? walkClip : idleClip;
+      const prevClipName = isMoving ? idleClip : walkClip;
+      if (nextClipName) actions[nextClipName]?.reset().fadeIn(ANIMATION_FADE_SECONDS).play();
+      if (prevClipName) actions[prevClipName]?.fadeOut(ANIMATION_FADE_SECONDS);
     }
-
-    if (isMoving) {
-      const targetRotation = Math.atan2(x, z) + rotationOffset;
-      facingRef.current = THREE.MathUtils.lerp(
-        facingRef.current,
-        wrapTowards(targetRotation, facingRef.current),
-        Math.min(1, delta * ROTATION_LERP_SPEED)
-      );
-      group.rotation.y = facingRef.current;
-    }
-
-    let nextX = group.position.x + x * speed * delta;
-    let nextZ = group.position.z + z * speed * delta;
-
-    // X축 이동 먼저 시도 후 충돌 시 되돌리기 (축 분리 방식 -> 벽을 따라 자연스럽게 미끄러짐)
-    if (colliders.some(({ box }) => circleIntersectsBox(nextX, group.position.z, radius, box))) {
-      nextX = group.position.x;
-    }
-    nextX = THREE.MathUtils.clamp(nextX, bounds.minX, bounds.maxX);
-
-    if (colliders.some(({ box }) => circleIntersectsBox(nextX, nextZ, radius, box))) {
-      nextZ = group.position.z;
-    }
-    nextZ = THREE.MathUtils.clamp(nextZ, bounds.minZ, bounds.maxZ);
 
     group.position.x = nextX;
     group.position.z = nextZ;
 
-    // 가장 가까운 Interaction 대상 탐색 (변경될 때만 React state 갱신)
-    let closestId: string | null = null;
-    let closestDistance = Infinity;
-    for (const obj of INTERACTIVE_OBJECTS) {
-      const dx = nextX - obj.position[0];
-      const dz = nextZ - obj.position[2];
-      const distance = Math.hypot(dx, dz);
-      if (distance <= obj.interactionDistance && distance < closestDistance) {
-        closestDistance = distance;
-        closestId = obj.id;
+    // Contact shadow는 여울이의 회전(modelRef)과 무관하게, collision과 동일한 foot point
+    // (group.position.x/z)만 그대로 따라간다. groupRef 안에 넣지 않고 별도 mesh로 둔 이유는
+    // groupRef의 scale(0.7)이 그림자 크기에도 곱해지는 걸 피하기 위해서다.
+    if (shadowRef.current) {
+      shadowRef.current.position.x = nextX;
+      shadowRef.current.position.z = nextZ;
+    }
+
+    if (GAME_DEBUG.logMovement && hasInput !== lastMovementLogRef.current) {
+      lastMovementLogRef.current = hasInput;
+      console.log(
+        `[Movement] input=(${inputX.toFixed(2)},${inputZ.toFixed(2)}) move=(${moveX.toFixed(2)},${moveZ.toFixed(2)}) pos=(${nextX.toFixed(2)},${nextZ.toFixed(2)}) isMoving=${isMoving}`
+      );
+    }
+
+    // 최종 확정된 발 위치(정규화 좌표) — 디버그 로그, 상호작용 판정, 디버그 오버레이 점이 전부 이 값을 공유한다.
+    const footNorm = worldToNormalized(nextX, nextZ);
+    footNormRef.current.x = footNorm.x;
+    footNormRef.current.y = footNorm.y;
+
+    if (GAME_DEBUG.logCollision) {
+      const roomBlocked = isBlockedByRoom(nextX, nextZ);
+      const key = `${roomBlocked}|${nextX.toFixed(1)}|${nextZ.toFixed(1)}`;
+      if (key !== lastCollisionLogRef.current) {
+        lastCollisionLogRef.current = key;
+        console.log(
+          `[Collision] world=(${nextX.toFixed(2)}, ${nextZ.toFixed(2)}) norm=(${footNorm.x.toFixed(3)}, ${footNorm.y.toFixed(3)}) room=${roomBlocked}`
+        );
       }
     }
 
-    if (closestId !== activeIdRef.current) {
-      activeIdRef.current = closestId;
-      onActiveInteractionChange(closestId);
+    // 발이 속한 Interaction Zone 탐색 (변경될 때만 React state 갱신)
+    const zone = findInteractionZone(footNorm.x, footNorm.y);
+
+    if (zone?.id !== activeIdRef.current) {
+      activeIdRef.current = zone?.id ?? null;
+      onActiveInteractionChange(zone);
     }
 
-    if (closestId && consumeActionPressed()) {
-      const target = INTERACTIVE_OBJECTS.find((obj) => obj.id === closestId);
-      if (target) onInteract(target.route);
+    if (zone && consumeActionPressed()) {
+      onInteract(zone.route);
     }
   });
 
   return (
     <group ref={groupRef} position={[0, 0, 0.5]} scale={GAME_CONFIG.player.scale}>
-      <primitive object={model} position={[0, groundOffset + GAME_CONFIG.player.yOffset, 0]} />
+      <group ref={modelRef}>
+        <primitive object={model} position={[0, groundOffset + GAME_CONFIG.player.yOffset, 0]} />
+      </group>
     </group>
   );
 }

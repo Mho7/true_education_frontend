@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  logging: {
+    browserToTerminal: true,
+  },
 };
 
 export default nextConfig;
