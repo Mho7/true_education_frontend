@@ -59,3 +59,30 @@ input[type="number"] {
     animation: none;
   }
 }
+
+/* 스탬프: 위에서 "쿵" 하고 찍히는 애니메이션 */
+@keyframes stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+  75% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@utility animate-stamp {
+  animation: stamp 0.5s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-stamp {
+    animation: none;
+  }
+}

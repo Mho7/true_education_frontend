@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useState } from "react";
 import BookshelfDevPanel from "@/components/library/BookshelfDevPanel";
+import { Anchor, useElementSize, type Scale } from "@/components/stage/Anchor";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { useCompletedBooks, type CompletedBook } from "@/lib/bookshelf";
 
@@ -30,60 +31,6 @@ function formatCompletedDate(iso: string) {
   const date = new Date(iso);
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${pad(date.getFullYear() % 100)} / ${pad(date.getMonth() + 1)} / ${pad(date.getDate())}`;
-}
-
-/** 요소의 실제 크기(px)를 따라간다 */
-function useElementSize<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => {
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-  return [ref, size] as const;
-}
-
-type Scale = { x: number; y: number };
-
-/**
- * 시안 좌표(x, y)에 붙는 UI 묶음. 위치는 가로·세로 배율을 따로 적용해 배경 그림과 정확히 겹치고,
- * 크기는 세로 배율 하나로만 키워 글자·책이 찌그러지지 않는다.
- */
-function Anchor({
-  x,
-  y,
-  scale,
-  size = 1,
-  centerX = false,
-  children,
-  className = "",
-}: {
-  x: number;
-  y: number;
-  scale: Scale;
-  /** 시안 크기 대비 추가 배율 */
-  size?: number;
-  /** true면 x를 가운데 기준으로 둔다 */
-  centerX?: boolean;
-  children: ReactNode;
-  className?: string;
-}) {
-  const style: CSSProperties = {
-    left: x * scale.x,
-    top: y * scale.y,
-    transform: `${centerX ? "translateX(-50%) " : ""}scale(${scale.y * size})`,
-    transformOrigin: centerX ? "top center" : "top left",
-  };
-  return (
-    <div className={`absolute ${className}`} style={style}>
-      {children}
-    </div>
-  );
 }
 
 export default function LibraryScreen() {
