@@ -9,10 +9,14 @@ import { GAME_CONFIG, GAME_DEBUG } from "@/lib/gameConfig";
 import {
   isBlocked as isBlockedByRect,
   findInteractionZone,
+  findClickedInteractionZone,
+  normalizedToScreen,
+  screenToNormalized,
   BACKGROUND_IMAGE_SIZE,
   type InteractionZone,
 } from "@/lib/roomColliders";
 import { useKeyboardControls } from "@/hooks/useKeyboardControls";
+import { usePointerControls } from "@/hooks/usePointerControls";
 import { worldToImagePixel } from "@/lib/screenProjection";
 import { tuneYeowliMaterials } from "@/lib/tuneYeowliMaterials";
 
@@ -23,6 +27,8 @@ type PlayerProps = {
   shadowRef: RefObject<THREE.Mesh | null>;
   onActiveInteractionChange: (zone: InteractionZone | null) => void;
   onInteract: (route: string) => void;
+  /** 마우스가 클릭 가능한 가구 위에 올라갔는지 (커서 모양 변경용, 바뀔 때만 호출) */
+  onHoverClickableChange: (clickable: boolean) => void;
 };
 
 // 회전 감쇠 계수. 1 - exp(-TURN_SPEED * delta) 형태로 써서 프레임레이트와
@@ -34,6 +40,10 @@ const ANIMATION_FADE_SECONDS = 0.25;
 // 없으면 이름에 키워드가 포함된 클립을 fallback으로 탐색한다 (하드코딩 가정 금지).
 const IDLE_CLIP_CANDIDATES = ["Yeoul_Idle", "Idle"];
 const WALK_CLIP_CANDIDATES = ["Yeoul_Walk", "Walk", "Walking"];
+// 클릭/터치 목표 지점까지 이 거리(world unit) 안으로 들어오면 도착으로 본다.
+const ARRIVE_DISTANCE = 0.05;
+// 목표 지점으로 가는 도중 벽/가구에 막혀 이 시간(초) 이상 못 움직이면 이동을 포기한다.
+const STUCK_SECONDS = 0.3;
 
 /** 후보 이름을 우선 탐색하고, 없으면 이름에 키워드가 포함된 클립을 찾는다. */
 function resolveClipName(names: string[], candidates: string[], fallbackKeyword: string): string | null {
@@ -42,7 +52,13 @@ function resolveClipName(names: string[], candidates: string[], fallbackKeyword:
   return names.find((n) => n.toLowerCase().includes(fallbackKeyword)) ?? null;
 }
 
-export default function Player({ footNormRef, shadowRef, onActiveInteractionChange, onInteract }: PlayerProps) {
+export default function Player({
+  footNormRef,
+  shadowRef,
+  onActiveInteractionChange,
+  onInteract,
+  onHoverClickableChange,
+}: PlayerProps) {
   // 실제 월드 이동/충돌을 담당하는 root. 회전은 이 그룹이 아니라 안쪽 modelRef가 맡는다.
   const groupRef = useRef<THREE.Group>(null!);
   // 여울이 모델의 "바라보는 방향" 회전만 담당하는 그룹 (position/충돌과 분리).
@@ -52,9 +68,20 @@ export default function Player({ footNormRef, shadowRef, onActiveInteractionChan
   const targetQuaternionRef = useRef(new THREE.Quaternion());
   const targetEulerRef = useRef(new THREE.Euler());
 
-  const { camera, size } = useThree();
+  const { camera, size, gl } = useThree();
   const { scene, animations } = useGLTF(GAME_CONFIG.player.modelPath);
   const { getMovement, consumeActionPressed } = useKeyboardControls();
+  const { getHeldPosition, getHoverPosition, consumeTap } = usePointerControls(gl.domElement);
+
+  // 마우스/터치로 지정된 바닥 목표 지점(world). 키보드 입력이 들어오면 즉시 취소된다.
+  const moveTargetRef = useRef<THREE.Vector3 | null>(null);
+  // 가구(책장/책상)를 클릭했을 때, 도착하면 이동할 상호작용 영역
+  const pendingZoneRef = useRef<InteractionZone | null>(null);
+  const stuckTimeRef = useRef(0);
+  const hoverClickableRef = useRef(false);
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const ndcRef = useRef(new THREE.Vector2());
+  const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
 
   // GLB를 복제하고 bounding box를 계산해 발이 바닥(y=0)에 닿도록 자동 보정한다.
   const { model, groundOffset } = useMemo(() => {
@@ -177,6 +204,14 @@ export default function Player({ footNormRef, shadowRef, onActiveInteractionChan
     return isBlockedByRoom(x, z);
   };
 
+  // canvas 픽셀 좌표 -> 바닥(y=0) world 좌표. 수평선 위(바닥과 안 만나는 방향)를 누르면 null.
+  const screenToGround = (sx: number, sy: number): THREE.Vector3 | null => {
+    if (size.width === 0 || size.height === 0) return null;
+    ndcRef.current.set((sx / size.width) * 2 - 1, -(sy / size.height) * 2 + 1);
+    raycasterRef.current.setFromCamera(ndcRef.current, camera);
+    return raycasterRef.current.ray.intersectPlane(groundPlane, new THREE.Vector3());
+  };
+
   const lastCollisionLogRef = useRef<string | null>(null);
   const lastMovementLogRef = useRef<boolean | null>(null);
 
@@ -186,11 +221,58 @@ export default function Player({ footNormRef, shadowRef, onActiveInteractionChan
 
     const { x: inputX, z: inputZ } = getMovement();
     const { speed, rotationOffset } = GAME_CONFIG.player;
-    const hasInput = inputX !== 0 || inputZ !== 0;
+    const hasKeyboardInput = inputX !== 0 || inputZ !== 0;
 
-    // WASD 축을 world 축이 아니라 "화면상 방향"(카메라 forward/right)으로 변환한다.
-    const moveX = cameraBasis.right.x * inputX - cameraBasis.forward.x * inputZ;
-    const moveZ = cameraBasis.right.z * inputX - cameraBasis.forward.z * inputZ;
+    // --- 마우스/터치 입력 ---
+    // 짧게 탭한 곳이 가구(책장/책상)면 그 앞까지 걸어간 뒤 해당 페이지로 이동한다.
+    const tap = consumeTap();
+    if (tap && size.width > 0 && size.height > 0) {
+      const tapNorm = screenToNormalized(tap.x, tap.y, size.width, size.height);
+      const clickedZone = findClickedInteractionZone(tapNorm.x, tapNorm.y);
+      if (clickedZone) {
+        const approach = normalizedToScreen(
+          clickedZone.approachPoint.x,
+          clickedZone.approachPoint.y,
+          size.width,
+          size.height
+        );
+        pendingZoneRef.current = clickedZone;
+        moveTargetRef.current = screenToGround(approach.x, approach.y);
+      }
+    }
+    // 누르고 있는 동안에는 여울이가 포인터가 가리키는 바닥 지점을 계속 따라간다.
+    const held = getHeldPosition();
+    if (held) {
+      pendingZoneRef.current = null;
+      const ground = screenToGround(held.x, held.y);
+      if (ground) moveTargetRef.current = ground;
+    }
+    if (hasKeyboardInput) {
+      moveTargetRef.current = null;
+      pendingZoneRef.current = null;
+    }
+
+    let moveX = 0;
+    let moveZ = 0;
+    let maxStep = Infinity;
+    if (hasKeyboardInput) {
+      // WASD 축을 world 축이 아니라 "화면상 방향"(카메라 forward/right)으로 변환한다.
+      moveX = cameraBasis.right.x * inputX - cameraBasis.forward.x * inputZ;
+      moveZ = cameraBasis.right.z * inputX - cameraBasis.forward.z * inputZ;
+    } else if (moveTargetRef.current) {
+      const dx = moveTargetRef.current.x - group.position.x;
+      const dz = moveTargetRef.current.z - group.position.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance < ARRIVE_DISTANCE) {
+        moveTargetRef.current = null;
+      } else {
+        moveX = dx / distance;
+        moveZ = dz / distance;
+        // 목표 지점을 지나쳐서 앞뒤로 떨리지 않도록 남은 거리까지만 이동
+        maxStep = distance;
+      }
+    }
+    const hasInput = moveX !== 0 || moveZ !== 0;
 
     if (hasInput && modelRef.current) {
       const targetAngle = Math.atan2(moveX, moveZ) + rotationOffset;
@@ -201,8 +283,9 @@ export default function Player({ footNormRef, shadowRef, onActiveInteractionChan
       modelRef.current.quaternion.slerp(targetQuaternionRef.current, rotationAmount);
     }
 
-    let nextX = group.position.x + moveX * speed * delta;
-    let nextZ = group.position.z + moveZ * speed * delta;
+    const step = Math.min(speed * delta, maxStep);
+    let nextX = group.position.x + moveX * step;
+    let nextZ = group.position.z + moveZ * step;
 
     // X축 이동 먼저 시도 후 충돌 시 되돌리기 (축 분리 방식 -> 벽을 따라 자연스럽게 미끄러짐)
     // 벽/가구 판정은 lib/roomColliders.ts의 이미지 정규화 좌표계 하나로만 한다 — 여기서
@@ -220,6 +303,15 @@ export default function Player({ footNormRef, shadowRef, onActiveInteractionChan
 
     // 실제로 위치가 바뀐 경우에만 Walk, 키를 놓았거나 충돌로 막혔으면 Idle로 복귀
     const isMoving = nextX !== group.position.x || nextZ !== group.position.z;
+
+    // 클릭/탭으로 지정한 목표가 벽/가구에 막혀 도달 불가능하면 잠시 후 이동을 멈춘다.
+    // (누르고 있는 중에는 막혀 있어도 사용자가 방향을 바꿀 수 있으므로 유지)
+    if (moveTargetRef.current && !held && !isMoving) {
+      stuckTimeRef.current += delta;
+      if (stuckTimeRef.current > STUCK_SECONDS) moveTargetRef.current = null;
+    } else {
+      stuckTimeRef.current = 0;
+    }
 
     // 상태가 실제로 바뀔 때만 crossfade (매 프레임 재생/재시작 방지)
     if (isMoving !== isMovingRef.current) {
@@ -274,6 +366,26 @@ export default function Player({ footNormRef, shadowRef, onActiveInteractionChan
 
     if (zone && consumeActionPressed()) {
       onInteract(zone.route);
+    }
+
+    // 가구를 클릭해서 걸어가는 중: 해당 영역에 들어왔거나, 더 갈 수 없으면(도착/막힘) 페이지 이동
+    const pendingZone = pendingZoneRef.current;
+    if (pendingZone && (zone?.id === pendingZone.id || !moveTargetRef.current)) {
+      pendingZoneRef.current = null;
+      moveTargetRef.current = null;
+      onInteract(pendingZone.route);
+    }
+
+    // 마우스를 가구 위에 올리면 클릭 가능하다는 걸 커서로 알려준다.
+    const hover = getHoverPosition();
+    let hoverClickable = false;
+    if (hover && size.width > 0 && size.height > 0) {
+      const hoverNorm = screenToNormalized(hover.x, hover.y, size.width, size.height);
+      hoverClickable = findClickedInteractionZone(hoverNorm.x, hoverNorm.y) !== null;
+    }
+    if (hoverClickable !== hoverClickableRef.current) {
+      hoverClickableRef.current = hoverClickable;
+      onHoverClickableChange(hoverClickable);
     }
   });
 

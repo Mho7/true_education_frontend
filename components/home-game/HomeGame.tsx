@@ -42,7 +42,8 @@ export default function HomeGame() {
       {GAME_DEBUG.debugCollision && <CollisionDebugOverlay footNormRef={footNormRef} />}
 
       {/* Layer 4 */}
-      <InteractionUI active={active} />
+      <InteractionUI active={active} onInteract={handleInteract} />
+
     </div>
   );
 }

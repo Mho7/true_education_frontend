@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, type RefObject } from "react";
+import { Suspense, useRef, useState, type RefObject } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Html, useProgress } from "@react-three/drei";
 import * as THREE from "three";
@@ -29,12 +29,22 @@ function Loader() {
 /** Layer 2 — room-background.png 위에 겹쳐지는 투명 Canvas. Yeowl만 그린다. */
 export default function GameCanvas({ footNormRef, onActiveInteractionChange, onInteract }: GameCanvasProps) {
   const shadowRef = useRef<THREE.Mesh>(null);
+  const [hoverClickable, setHoverClickable] = useState(false);
 
   return (
     <Canvas
       // Canvas가 내부적으로 wrapper div에 position:relative를 강제로 지정하므로,
       // className이 아니라 style로 덮어써야 absolute + z-index가 실제로 적용된다.
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 10 }}
+      // touchAction: none — 터치 드래그가 페이지 스크롤/핀치 줌으로 새지 않고 캐릭터 조작에만 쓰이게 한다.
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        zIndex: 10,
+        touchAction: "none",
+        cursor: hoverClickable ? "pointer" : undefined,
+      }}
       gl={{ alpha: true }}
       // "soft" -> renderer.shadowMap.enabled = true / type = PCFSoftShadowMap (R3F 관용 표기).
       // 배경은 DOM <img>(RoomBackground)라 이 Canvas의 tone mapping/shadow와 무관하게 원본 색 그대로 유지된다.
@@ -88,6 +98,7 @@ export default function GameCanvas({ footNormRef, onActiveInteractionChange, onI
           shadowRef={shadowRef}
           onActiveInteractionChange={onActiveInteractionChange}
           onInteract={onInteract}
+          onHoverClickableChange={setHoverClickable}
         />
       </Suspense>
     </Canvas>

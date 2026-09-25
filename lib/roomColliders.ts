@@ -26,6 +26,13 @@ export type InteractionZone = RectCollider & {
   label: string;
   actionLabel: string;
   route: string;
+  /**
+   * 마우스 클릭/터치로 이 영역을 눌렀을 때 "해당 가구를 선택한 것"으로 보는 범위.
+   * 발 위치 판정용 x1~y2와 달리, 벽에 그려진 가구 실루엣 + 앞쪽 발광 바닥까지 넓게 잡는다.
+   */
+  clickArea: Omit<RectCollider, "id">;
+  /** 가구를 클릭했을 때 여울이가 걸어갈 바닥 지점 (이 영역 안, 충돌 영역 밖이어야 함) */
+  approachPoint: { x: number; y: number };
 };
 
 /** 배경 원본 PNG 해상도 (public/home/room-background.png) */
@@ -91,6 +98,8 @@ export const INTERACTION_ZONES: InteractionZone[] = [
     label: "책을 보러 갈까요?",
     actionLabel: "서재 가기",
     route: "/library",
+    clickArea: { x1: 0.04, y1: 0.04, x2: 0.32, y2: 0.58 },
+    approachPoint: { x: 0.25, y: 0.48 },
   },
   {
     id: "desk",
@@ -101,6 +110,8 @@ export const INTERACTION_ZONES: InteractionZone[] = [
     label: "학습하러 갈까요?",
     actionLabel: "학습하기",
     route: "/study",
+    clickArea: { x1: 0.73, y1: 0.18, x2: 0.96, y2: 0.5 },
+    approachPoint: { x: 0.72, y: 0.42 },
   },
 ];
 
@@ -153,6 +164,11 @@ export function findInteractionZone(x: number, y: number): InteractionZone | nul
   return INTERACTION_ZONES.find((zone) => pointInRect(x, y, zone)) ?? null;
 }
 
+/** 클릭/터치 지점(정규화 좌표)이 가리키는 가구의 상호작용 영역을 반환 (없으면 null) */
+export function findClickedInteractionZone(x: number, y: number): InteractionZone | null {
+  return INTERACTION_ZONES.find((zone) => pointInRect(x, y, { id: zone.id, ...zone.clickArea })) ?? null;
+}
+
 /**
  * 이미지 정규화 좌표(0~1) → 실제 화면 픽셀 좌표.
  * <img class="object-cover object-center">가 배경을 그리는 것과 동일한 매핑이라,
@@ -172,4 +188,21 @@ export function normalizedToScreen(
   const offsetX = (viewportWidth - displayedWidth) / 2;
   const offsetY = (viewportHeight - displayedHeight) / 2;
   return { x: offsetX + nx * displayedWidth, y: offsetY + ny * displayedHeight };
+}
+
+/** normalizedToScreen의 역변환 — 화면 픽셀 좌표 → 이미지 정규화 좌표(0~1). */
+export function screenToNormalized(
+  sx: number,
+  sy: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  imageWidth: number = BACKGROUND_IMAGE_SIZE.width,
+  imageHeight: number = BACKGROUND_IMAGE_SIZE.height
+): { x: number; y: number } {
+  const scale = Math.max(viewportWidth / imageWidth, viewportHeight / imageHeight);
+  const displayedWidth = imageWidth * scale;
+  const displayedHeight = imageHeight * scale;
+  const offsetX = (viewportWidth - displayedWidth) / 2;
+  const offsetY = (viewportHeight - displayedHeight) / 2;
+  return { x: (sx - offsetX) / displayedWidth, y: (sy - offsetY) / displayedHeight };
 }
