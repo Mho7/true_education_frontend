@@ -96,7 +96,7 @@ export const INTERACTION_ZONES: InteractionZone[] = [
     x2: 0.34,
     y2: 0.58,
     label: "책을 보러 갈까요?",
-    actionLabel: "서재 가기",
+    actionLabel: "책장 가기",
     route: "/library",
     clickArea: { x1: 0.04, y1: 0.04, x2: 0.32, y2: 0.58 },
     approachPoint: { x: 0.25, y: 0.48 },

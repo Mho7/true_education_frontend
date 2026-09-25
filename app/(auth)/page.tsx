@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import DesignStage from "@/components/auth/DesignStage";
+import DesignStage from "@/components/DesignStage";
 import LoginForm from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = {

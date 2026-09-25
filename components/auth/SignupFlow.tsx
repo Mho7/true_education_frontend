@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
-import DesignStage from "@/components/auth/DesignStage";
+import DesignStage from "@/components/DesignStage";
 import { ChevronLeftIcon, GraduationCapIcon, UsersIcon } from "@/components/auth/icons";
-import type { MemberRole } from "@/components/auth/LoginForm";
+import { registerMember, type Member, type MemberRole } from "@/lib/session";
 import { CheckboxField, TextField } from "@/components/auth/SignupFields";
 import SignupStepper from "@/components/auth/SignupStepper";
 
@@ -27,7 +27,7 @@ const primaryButtonClassName =
 export default function SignupFlow() {
   const [step, setStep] = useState<Step>("type");
   const [role, setRole] = useState<MemberRole>("student");
-  const [name, setName] = useState("");
+  const [member, setMember] = useState<Member | null>(null);
 
   return (
     <main className="relative min-h-screen flex-1 overflow-hidden bg-[#F7EEE3] bg-[linear-gradient(90deg,#F6E6D2_0%,#FBF6F0_100%)] lg:h-screen">
@@ -47,13 +47,13 @@ export default function SignupFlow() {
               <InfoStep
                 role={role}
                 onBack={() => setStep("type")}
-                onComplete={(memberName) => {
-                  setName(memberName);
+                onComplete={(registered) => {
+                  setMember(registered);
                   setStep("done");
                 }}
               />
             )}
-            {step === "done" && <DoneStep name={name} />}
+            {step === "done" && member && <DoneStep member={member} />}
           </div>
         </div>
       </DesignStage>
@@ -158,7 +158,10 @@ function TypeStep({
   );
 }
 
-type InfoErrors = Partial<Record<"name" | "loginId" | "password" | "passwordConfirm" | "studentCode" | "terms", string>>;
+const MIN_AGE = 3;
+const MAX_AGE = 19;
+
+type InfoErrors = Partial<Record<"name" | "age" | "loginId" | "password" | "passwordConfirm" | "studentCode" | "terms", string>>;
 
 function InfoStep({
   role,
@@ -167,10 +170,10 @@ function InfoStep({
 }: {
   role: MemberRole;
   onBack: () => void;
-  onComplete: (name: string) => void;
+  onComplete: (member: Member) => void;
 }) {
   const isGuardian = role === "guardian";
-  const [form, setForm] = useState({ name: "", loginId: "", password: "", passwordConfirm: "", studentCode: "" });
+  const [form, setForm] = useState({ name: "", age: "", loginId: "", password: "", passwordConfirm: "", studentCode: "" });
   const [checkedLoginId, setCheckedLoginId] = useState<string | null>(null);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreeMarketing, setAgreeMarketing] = useState(false);
@@ -196,6 +199,10 @@ function InfoStep({
     event.preventDefault();
     const next: InfoErrors = {};
     if (!form.name.trim()) next.name = "이름을 입력해 주세요";
+    const age = Number(form.age);
+    if (!isGuardian && (!form.age || !Number.isInteger(age) || age < MIN_AGE || age > MAX_AGE)) {
+      next.age = `${MIN_AGE}~${MAX_AGE}살로 입력`;
+    }
     if (!form.loginId.trim()) next.loginId = "아이디를 입력해 주세요";
     else if (!loginIdVerified) next.loginId = "아이디 중복확인을 해 주세요";
     if (form.password.length < 8) next.password = "비밀번호는 8자 이상이어야 해요";
@@ -206,7 +213,15 @@ function InfoStep({
     setErrors(next);
     if (Object.keys(next).length > 0) return;
     // TODO: 회원가입 API 연동 (role, form, agreeMarketing)
-    onComplete(form.name.trim());
+    onComplete(
+      registerMember({
+        loginId: form.loginId.trim(),
+        name: form.name.trim(),
+        role,
+        age: isGuardian ? undefined : age,
+        studentCode: isGuardian ? form.studentCode.trim().toUpperCase() : undefined,
+      })
+    );
   }
 
   const error = (key: keyof InfoErrors) => (errors[key] ? { text: errors[key], tone: "error" as const } : null);
@@ -229,15 +244,34 @@ function InfoStep({
       />
 
       <form onSubmit={handleSubmit} noValidate className="mt-[26px] flex flex-col">
-        <TextField
-          label="이름"
-          name="name"
-          autoComplete="name"
-          placeholder="이름을 입력해 주세요"
-          value={form.name}
-          onChange={update("name")}
-          message={error("name")}
-        />
+        {/* 학생은 이름 옆에 나이를 함께 받는다 (카드 높이를 늘리지 않도록 한 줄에 배치) */}
+        <div className="flex gap-[10px]">
+          <TextField
+            className="min-w-0 flex-1"
+            label="이름"
+            name="name"
+            autoComplete="name"
+            placeholder="이름을 입력해 주세요"
+            value={form.name}
+            onChange={update("name")}
+            message={error("name")}
+          />
+          {!isGuardian && (
+            <TextField
+              className="w-[120px] shrink-0"
+              label="나이"
+              name="age"
+              type="number"
+              inputMode="numeric"
+              min={MIN_AGE}
+              max={MAX_AGE}
+              placeholder="예: 9"
+              value={form.age}
+              onChange={(event) => setForm((prev) => ({ ...prev, age: event.target.value.replace(/D/g, "").slice(0, 2) }))}
+              message={error("age")}
+            />
+          )}
+        </div>
         <TextField
           className="mt-[10px]"
           label="아이디"
@@ -315,14 +349,20 @@ function InfoStep({
   );
 }
 
-function DoneStep({ name }: { name: string }) {
+function DoneStep({ member }: { member: Member }) {
   return (
     <>
       <StepHeader title="가입 완료" subtitle="여울이가 기다리고 있어요" current={2} />
       <div className="mt-[26px] flex flex-col items-center gap-[10px] text-center">
         <Image src="/auth/yeoul-cat.png" alt="" width={96} height={96} />
-        <p className="text-[17px] font-bold text-[#5A4032]">{name}님, 여울에 오신 걸 환영해요!</p>
+        <p className="text-[17px] font-bold text-[#5A4032]">{member.name}님, 여울에 오신 걸 환영해요!</p>
         <p className="text-[13px] text-[#8A7F76]">이제 로그인하고 여울이와 함께 책을 읽어 볼까요?</p>
+        {member.role === "student" && member.studentCode && (
+          <p className="mt-[6px] rounded-[12px] bg-[#FBF4EC] px-[18px] py-[10px] text-[13px] text-[#6B5446]">
+            내 학생 코드 <strong className="ml-1 text-[17px] tracking-[0.2em] text-[#5A4032]">{member.studentCode}</strong>
+            <span className="mt-[2px] block text-[12px] text-[#8A7F76]">보호자가 가입할 때 입력하면 연결돼요 (설정에서 다시 볼 수 있어요)</span>
+          </p>
+        )}
       </div>
       <Link href="/" className={`mt-[26px] ${primaryButtonClassName}`}>
         로그인하러 가기
