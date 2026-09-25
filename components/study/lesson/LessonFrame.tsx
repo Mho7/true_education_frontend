@@ -11,6 +11,8 @@ export const CANVAS_HEIGHT = 900;
 
 type LessonFrameProps = {
   title: string;
+  /** true면 위쪽 제목을 화면에서 숨긴다 (스크린 리더에는 그대로 읽힌다). "나가기"는 그대로 남는다. */
+  hideTitle?: boolean;
   /** 진행 막대 (현재 번호는 1부터) */
   progress?: { current: number; total: number };
   children: ReactNode;
@@ -20,7 +22,7 @@ type LessonFrameProps = {
  * 학습 단계 페이지 공통 틀. 사이드바는 그대로 두고, 오른쪽 콘텐츠는 시안 캔버스를 화면에 맞춰 통째로 확대/축소한다.
  * 위쪽에 "나가기"(학습 지도로 돌아가기), 제목, 진행 막대가 있다.
  */
-export default function LessonFrame({ title, progress, children }: LessonFrameProps) {
+export default function LessonFrame({ title, hideTitle = false, progress, children }: LessonFrameProps) {
   const sideNavWidth = useSideNavWidth();
   const [areaRef, areaSize] = useElementSize<HTMLDivElement>();
   const scale = areaSize ? Math.min(areaSize.height / CANVAS_HEIGHT, areaSize.width / CANVAS_WIDTH) : 0;
@@ -49,7 +51,11 @@ export default function LessonFrame({ title, progress, children }: LessonFramePr
                 </svg>
                 나가기
               </Link>
-              <h1 className="absolute top-[38px] left-1/2 -translate-x-1/2 text-[26px] leading-[36px] font-bold text-[#2B2420]">
+              <h1
+                className={
+                  hideTitle ? "sr-only" : "absolute top-[38px] left-1/2 -translate-x-1/2 text-[26px] leading-[36px] font-bold text-[#2B2420]"
+                }
+              >
                 {title}
               </h1>
               {progress && (

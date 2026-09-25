@@ -19,7 +19,7 @@ export type CompletedBook = {
 const STORAGE_KEY = "yeoul.bookshelf.v1";
 const CHANGE_EVENT = "yeoul:bookshelf-change";
 // 책이 꽂힐 때마다 이 순서대로 표지 디자인이 돌아간다 (public/library/book-<theme>.png).
-const THEMES: BookTheme[] = ["blue", "green", "pink", "purple", "yellow"];
+export const BOOK_THEMES: BookTheme[] = ["blue", "green", "pink", "purple", "yellow"];
 const EMPTY: CompletedBook[] = [];
 
 let cachedRaw: string | null = null;
@@ -67,7 +67,7 @@ export function addCompletedBook(book: { title: string; coverImage?: string }): 
     title: book.title,
     coverImage: book.coverImage,
     completedAt: new Date().toISOString(),
-    theme: THEMES[books.length % THEMES.length],
+    theme: BOOK_THEMES[books.length % BOOK_THEMES.length],
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...books, next]));
   window.dispatchEvent(new Event(CHANGE_EVENT));

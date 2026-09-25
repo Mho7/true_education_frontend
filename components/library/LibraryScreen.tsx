@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import BookCover, { BOOK_HEIGHT, BOOK_WIDTH } from "@/components/library/BookCover";
 import BookshelfDevPanel from "@/components/library/BookshelfDevPanel";
 import { Anchor, useElementSize, type Scale } from "@/components/stage/Anchor";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
@@ -10,8 +11,6 @@ import { useCompletedBooks, type CompletedBook } from "@/lib/bookshelf";
 // 좌표는 책장 배경 그림(ABCD.png, 1671×941) 기준이다. 그림 전체가 사이드바 오른쪽 영역에 꽉 맞는다.
 const STAGE_WIDTH = 1671;
 const STAGE_HEIGHT = 941;
-const BOOK_WIDTH = 269.814;
-const BOOK_HEIGHT = 308;
 
 // 윗줄 네모 칸 6개에 한 권씩 꽂는다. 칸 안쪽은 y≈376~594, 가로 약 180~190px이다.
 // 책은 칸 바닥 턱(y≈594)에 세우고, 칸 가운데에 맞춘다.
@@ -23,15 +22,6 @@ const SHELF_BOOK_HEIGHT = BOOK_HEIGHT * BOOK_SCALE;
 const SLOT_TOP = CUBBY_FLOOR_Y - SHELF_BOOK_HEIGHT;
 const BOOKS_PER_SHELF = CUBBY_CENTER_X.length;
 const slotLeft = (index: number) => CUBBY_CENTER_X[index] - SHELF_BOOK_WIDTH / 2;
-
-// 표지 이미지마다 안쪽 그림 영역의 위치가 조금씩 다르다 (분홍만 조금 아래에 있다).
-const COVER_PANEL_TOP: Record<CompletedBook["theme"], number> = { blue: 52.8, green: 52.8, pink: 57.9, purple: 52.8, yellow: 52.8 };
-
-function formatCompletedDate(iso: string) {
-  const date = new Date(iso);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${pad(date.getFullYear() % 100)} / ${pad(date.getMonth() + 1)} / ${pad(date.getDate())}`;
-}
 
 export default function LibraryScreen() {
   const books = useCompletedBooks();
@@ -145,25 +135,10 @@ function BookOnShelf({ book }: { book: CompletedBook }) {
       className="group relative block cursor-pointer text-left"
       style={{ width: BOOK_WIDTH, height: BOOK_HEIGHT }}
     >
-      <div className="absolute inset-0 drop-shadow-[9px_2px_2.3px_rgba(0,0,0,0.29)] transition-transform duration-200 group-hover:-translate-y-[14px] group-focus-visible:-translate-y-[14px]">
-        <Image src={`/library/book-${book.theme}.png`} alt="" fill sizes="270px" />
-
-        <p className="absolute top-[22px] left-[41px] flex h-[36px] w-[204px] items-center justify-center px-2 text-[16px] font-bold text-[#5B4F3E]">
-          <span className="truncate">{book.title}</span>
-        </p>
-
-        <div
-          className="absolute left-[37.6px] h-[206.6px] w-[210.7px] rounded-[10px] border border-dashed border-[#E4D3B8] bg-[#FDF9F3] p-[1.5px]"
-          style={{ top: COVER_PANEL_TOP[book.theme] }}
-        >
-          <div className="relative size-full overflow-hidden rounded-[6.5px] bg-[#F1EDE4]">
-            {book.coverImage && <Image src={book.coverImage} alt="" fill sizes="206px" className="object-cover" />}
-          </div>
-        </div>
-
-        <p className="absolute top-[262px] left-[143px] -translate-x-1/2 font-display text-[18px] whitespace-nowrap text-[#C4561A]">
-          <time dateTime={book.completedAt}>{formatCompletedDate(book.completedAt)}</time>
-        </p>
+      <div className="absolute inset-0 transition-transform duration-200 group-hover:-translate-y-[14px] group-focus-visible:-translate-y-[14px]">
+        <BookCover theme={book.theme} title={book.title} date={book.completedAt}>
+          {book.coverImage && <Image src={book.coverImage} alt="" fill sizes="206px" className="object-contain" />}
+        </BookCover>
       </div>
     </button>
   );
