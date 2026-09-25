@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import BookCover, { BOOK_WIDTH } from "@/components/library/BookCover";
 import LessonFrame from "@/components/study/lesson/LessonFrame";
-import { ensureBookDraft, updateBookDraft, useBookDraft } from "@/lib/bookDraft";
+import { updateBookDraft, useBookDraft } from "@/lib/bookDraft";
 import { COVER_ART_HEIGHT, COVER_ART_WIDTH } from "@/lib/coverArt";
 import {
   createDrawingSnapshot,
@@ -28,6 +29,8 @@ const SIDE_COLUMN = { left: 753, width: 300 };
 // 시안 표지 미리보기의 그림 칸 바탕색
 const PREVIEW_ART_BACKGROUND = "#FFFDF9";
 
+const subscribeNothing = () => () => {};
+
 /** drawing: 그리는 중 (확인 팝업 포함) / explain: 그림을 저장했고 그림을 말로 설명하는 단계 */
 type Phase = "drawing" | "explain";
 
@@ -37,9 +40,13 @@ type Phase = "drawing" | "explain";
  * - 첫 "다 했어요"는 확인 팝업만 연다. 팝업이 떠 있어도 캔버스는 그대로 남아 있다.
  * - 팝업의 "다 했어요"를 누르면 그림을 표지 이미지로 저장하고, 같은 주소에서 그림 설명하기(ExplainDrawing)로 넘어간다.
  * - 초안에 표지 그림이 이미 있으면(설명하기까지 왔다가 새로고침) 처음부터 설명하기로 시작한다.
+ * - 초안은 제목 짓기(4단계)에서 만든다. 초안 없이 이 주소로 바로 들어오면 학습 지도로 돌려보낸다.
  */
 export default function DrawingSession() {
+  const router = useRouter();
   const draft = useBookDraft();
+  // 서버 렌더·첫 화면에서는 초안을 아직 못 읽었으므로 false. 그 뒤에도 초안이 없을 때만 되돌려 보낸다.
+  const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<HTMLCanvasElement>(null);
   const previewFrameRef = useRef(0);
@@ -54,10 +61,9 @@ export default function DrawingSession() {
   const coverImage = draft?.coverImage ?? savedCoverImage;
   const phase: Phase = coverImage ? "explain" : "drawing";
 
-  // 표지 색은 초안을 처음 만들 때 한 번만 고른다. 새로고침해도 같은 초안(같은 색)을 이어 쓴다.
   useEffect(() => {
-    ensureBookDraft();
-  }, []);
+    if (hydrated && !draft) router.replace("/study");
+  }, [hydrated, draft, router]);
 
   /** 그림 캔버스를 표지 미리보기 캔버스로 같은 비율 그대로 줄여 옮긴다 (한 프레임에 한 번만). */
   const paintPreview = useCallback(() => {

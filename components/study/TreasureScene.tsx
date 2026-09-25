@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { DEFAULT_DRAFT_TITLE, readBookDraft, startBookDraft } from "@/lib/bookDraft";
 import { addStamps, rollTreasureStamps } from "@/lib/stamps";
-import { resetStudyProgress } from "@/lib/studyProgress";
+import { markTreasureFound, readTreasureState, resetStudyProgress, type TreasureState } from "@/lib/studyProgress";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./studyMap";
 import { Fox, NextArrow, PillButton, SpeechBubble } from "./StudyParts";
 
@@ -23,6 +25,8 @@ const CONFETTI_COLORS = ["#FFD84D", "#FF8A65", "#9AEB19", "#6EC6FF", "#F48FB1", 
 const OPENING_MS = 900;
 /** 2개일 때 두 번째 스탬프가 찍히는 시각 */
 const SECOND_STAMP_DELAY = 1500;
+/** 표지 그리기·설명하기를 끝내고 돌아왔을 때 상자가 저절로 열리기까지 */
+const AUTO_OPEN_DELAY = 700;
 
 function makeConfetti(count: number, delay: number): ConfettiPiece[] {
   return Array.from({ length: count }, () => {
@@ -41,14 +45,38 @@ function makeConfetti(count: number, delay: number): ConfettiPiece[] {
   });
 }
 
+type TreasureSceneProps = {
+  scale: number;
+  viewWidth: number;
+  /** 다시 들어온 보물상자 상태. null이면 지도에서 막 달려와 처음 찾은 것이다. */
+  resume: TreasureState | null;
+  /** 상자를 여는 순간(진행 상태가 초기화되기 전에) 부른다 */
+  onOpen: () => void;
+};
+
 /**
  * 마지막 보물상자 장면 (시안 "마지막"). 시안 화면(1340×1024)을 가운데 두고,
- * 화면이 더 넓으면 양옆은 장면 그림이 이어서 채운다. 상자를 누르면 스탬프 1개(가끔 2개)가 나온다.
+ * 화면이 더 넓으면 양옆은 장면 그림이 이어서 채운다. 상자를 열면 스탬프 1개(가끔 2개)가 나온다.
+ *
+ * 상자는 책 표지를 그리고 설명까지 끝내야 열린다.
+ * - 처음 찾았을 때: "야호!" 뒤 상자를 누르면 표지 그리기 안내가 뜬다
+ * - 그리다 말고 돌아왔을 때(found): 표지 그리기 안내를 바로 띄운다
+ * - 다 만들고 돌아왔을 때(reward-pending): 잠깐 뒤 상자가 저절로 열린다
  */
-export default function TreasureScene({ scale, viewWidth }: { scale: number; viewWidth: number }) {
+export default function TreasureScene({ scale, viewWidth, resume, onOpen }: TreasureSceneProps) {
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("closed");
   const [reward, setReward] = useState<{ count: 1 | 2; confetti: ConfettiPiece[] } | null>(null);
+  // 들어올 때의 상태로 화면 흐름을 정한다. 들어온 뒤 저장된 상태가 바뀌어도 흐름은 그대로다.
+  const [entry] = useState(resume);
+  const [drawingPromptOpen, setDrawingPromptOpen] = useState(entry === "found");
+  const openedRef = useRef(false);
   const left = (viewWidth - VIEW_WIDTH) / 2;
+
+  // 보물상자를 찾았다고 기억한다. 그리다 말고 나가도 다음에 학습 지도에 오면 여기로 돌아온다.
+  useEffect(() => {
+    markTreasureFound();
+  }, []);
 
   useEffect(() => {
     if (phase !== "opening") return;
@@ -56,8 +84,11 @@ export default function TreasureScene({ scale, viewWidth }: { scale: number; vie
     return () => window.clearTimeout(timer);
   }, [phase]);
 
-  function openChest() {
-    if (phase !== "closed") return;
+  const openChest = useCallback(() => {
+    // 표지 그리기·설명하기를 끝낸 뒤에만 연다. 이미 열어 스탬프를 받았으면(상태가 지워짐) 다시 열지 않는다.
+    if (openedRef.current || readTreasureState() !== "reward-pending") return;
+    openedRef.current = true;
+    onOpen();
     const count = rollTreasureStamps();
     // 애니메이션 도중에 나가도 받은 스탬프는 남도록 누르는 순간 저장한다.
     addStamps(count);
@@ -71,10 +102,28 @@ export default function TreasureScene({ scale, viewWidth }: { scale: number; vie
       ],
     });
     setPhase("opening");
+  }, [onOpen]);
+
+  // 다 만들고 돌아왔으면 "야호!"·지도 이동 없이 잠깐 뒤 바로 연다.
+  useEffect(() => {
+    if (entry !== "reward-pending" || phase !== "closed") return;
+    const timer = window.setTimeout(openChest, AUTO_OPEN_DELAY);
+    return () => window.clearTimeout(timer);
+  }, [entry, phase, openChest]);
+
+  function handleChestClick() {
+    if (readTreasureState() === "reward-pending") openChest();
+    else setDrawingPromptOpen(true);
+  }
+
+  function startDrawing() {
+    // 초안이 사라졌으면(사이트 데이터 삭제 등) 그리기 화면에서 되돌아오지 않도록 기본 제목으로 새로 시작한다.
+    if (!readBookDraft()) startBookDraft(DEFAULT_DRAFT_TITLE);
+    router.push("/study/drawing");
   }
 
   return (
-    <div className="absolute inset-0 z-20 animate-fade-in overflow-hidden bg-[#CFE9F5]">
+    <div className={`absolute inset-0 z-20 overflow-hidden bg-[#CFE9F5] ${entry ? "" : "animate-fade-in"}`}>
       <div
         className={`absolute inset-0 ${phase === "opening" ? "animate-shake" : ""}`}
         style={phase === "opening" ? { animationIterationCount: 2 } : undefined}
@@ -108,13 +157,13 @@ export default function TreasureScene({ scale, viewWidth }: { scale: number; vie
           />
 
           <Fox x={270} y={860} height={500} pose="jump" className="pointer-events-none" />
-          {phase === "closed" && <SpeechBubble x={360} y={450}>야호! 보물상자를 찾았어!</SpeechBubble>}
+          {phase === "closed" && entry === null && <SpeechBubble x={360} y={450}>야호! 보물상자를 찾았어!</SpeechBubble>}
 
           {phase === "closed" && (
             <button
               type="button"
               aria-label="보물상자 열기"
-              onClick={openChest}
+              onClick={handleChestClick}
               className="absolute cursor-pointer rounded-[40px] transition-transform hover:scale-[1.03] active:scale-95"
               style={{ left: CHEST.x, top: CHEST.y, width: CHEST.width, height: CHEST.height }}
             >
@@ -124,7 +173,43 @@ export default function TreasureScene({ scale, viewWidth }: { scale: number; vie
         </div>
       </div>
 
+      {phase === "closed" && drawingPromptOpen && <DrawingPrompt scale={scale} onStart={startDrawing} />}
       {phase === "reward" && reward && <RewardReveal count={reward.count} confetti={reward.confetti} scale={scale} />}
+    </div>
+  );
+}
+
+/** 보물상자를 열기 전에 책 표지를 그리러 가자고 안내한다. 뒤의 여울이와 보물상자가 희미하게 비친다. */
+function DrawingPrompt({ scale, onStart }: { scale: number; onStart: () => void }) {
+  const titleId = useId();
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="absolute inset-0 z-30 flex animate-[fade-in_320ms_ease-out_both] items-center justify-center bg-[rgba(20,25,30,0.65)] motion-reduce:animate-none"
+    >
+      <div className="flex flex-col items-center text-center" style={{ transform: `scale(${scale})` }}>
+        <Image
+          src="/study/drawing/painter-yeoul.png"
+          alt=""
+          width={300}
+          height={277}
+          className="animate-[rise-in_350ms_ease-out_both] select-none motion-reduce:animate-none"
+          draggable={false}
+        />
+        <h2 id={titleId} className="mt-[36px] font-display text-[56px] leading-[68px] text-white">
+          책이 거의 완성됐어!
+        </h2>
+        <p className="mt-[12px] font-cocochoi text-[32px] leading-[46px] text-white/90">
+          이제 표지를 직접 그리면
+          <br />
+          보물상자를 열 수 있어!
+        </p>
+        <div className="mt-[40px]">
+          <PillButton onClick={onStart}>그림 그리기 →</PillButton>
+        </div>
+      </div>
     </div>
   );
 }

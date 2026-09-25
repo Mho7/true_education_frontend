@@ -2,11 +2,11 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { useElementSize } from "@/components/stage/Anchor";
 import { lessonHref } from "@/lib/studyLessons";
-import { useClearedLessons } from "@/lib/studyProgress";
+import { useClearedLessons, useTreasureState } from "@/lib/studyProgress";
 import { Fox, NextArrow, SpeechBubble } from "./StudyParts";
 import TreasureScene from "./TreasureScene";
 import {
@@ -34,6 +34,7 @@ import {
  * 다음 단계 발판을 누르면 진행한다. 1단계는 여울이가 처음 서 있는 발판이라 바로 학습 페이지로 넘어가고,
  * 2~4단계는 그 발판까지 달려가 한마디 한 뒤 넘어간다. 학습을 끝내고 돌아오면 끝낸 단계 수(저장됨)에 맞춰
  * 그 발판에서 기뻐하고 있다. 4단계를 끝내면 지도 끝 보물상자를 눌러 간다.
+ * 보물상자를 찾은 뒤 책 표지를 그리러 갔다가 돌아오면 지도 이동·대사를 다시 보여 주지 않고 보물상자 장면으로 바로 들어간다.
  */
 type Mode = "ready" | "running" | "arrived" | "leaving" | "treasure";
 
@@ -115,6 +116,11 @@ export default function StudyScreen() {
   /** 달리기 진행도 0~1 */
   const [runProgress, setRunProgress] = useState(0);
   const [showTreasureHint, setShowTreasureHint] = useState(false);
+  /** 보물상자를 이미 찾았는지(found), 표지를 다 만들고 열 차례인지(reward-pending) */
+  const treasure = useTreasureState();
+  const resumingTreasure = mode !== "treasure" && treasure !== null && cleared === LESSON_COUNT;
+  // 상자를 여는 순간 진행 상태가 초기화돼도 보물상자 장면이 닫히지 않게 treasure 모드로 붙잡아 둔다.
+  const holdTreasureScene = useCallback(() => setMode("treasure"), []);
 
   // 달리기: 길이에 비례한 시간 동안 다음 정거장까지 이동한다.
   useEffect(() => {
@@ -193,6 +199,8 @@ export default function StudyScreen() {
       line = ARRIVE_LINES[station] ?? null;
     }
   }
+  // 보물상자 장면으로 바로 들어갈 때는 지도 위 대사("대단해!" 등)를 띄우지 않는다.
+  if (resumingTreasure) line = null;
   const height = foxHeight(feet.y);
   const foxTop = feet.y - height;
   // 여울이가 화면 오른쪽 절반에 있으면 말풍선을 왼쪽으로 띄운다.
@@ -314,8 +322,13 @@ export default function StudyScreen() {
         </div>
 
 
-        {mode === "treasure" && (
-          <TreasureScene scale={scale} viewWidth={viewWidth} />
+        {(mode === "treasure" || resumingTreasure) && (
+          <TreasureScene
+            scale={scale}
+            viewWidth={viewWidth}
+            resume={mode === "treasure" ? null : treasure}
+            onOpen={holdTreasureScene}
+          />
         )}
       </div>
     </main>

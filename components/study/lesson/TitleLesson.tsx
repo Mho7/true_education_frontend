@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
-import { addCompletedBook } from "@/lib/bookshelf";
+import { startBookDraft } from "@/lib/bookDraft";
 import { LESSON_COUNT } from "@/lib/studyLessons";
 import { completeLesson } from "@/lib/studyProgress";
 import { GENERAL_PROMPTS, type TitleActivity } from "@/lib/titleActivity";
@@ -13,7 +13,7 @@ import LessonFrame from "./LessonFrame";
  * - 떠올리기 질문 3개를 보며 아이디어 메모를 적고, 제목을 적으면 "제목 완성하기"가 켜진다
  * - "생각이 잘 안 나요"를 누르면 이 이야기에 맞춘 힌트 질문으로 바뀌고, "처음 질문 보기"로 돌아간다
  * - 완성하면 내가 지은 제목과 원래 제목을 함께 보여 주고, "이동하기"로 4단계를 끝낸다
- *   (아이가 지은 제목으로 책장에 책이 꽂힌다)
+ *   (아이가 지은 제목으로 새 책 초안을 만든다. 책장에는 보물상자에서 표지를 그리고 설명까지 끝내야 꽂힌다)
  */
 const TITLE_MAX_LENGTH = 30;
 // 시안 캔버스 좌표 (1104×900, 사이드바 제외)
@@ -36,7 +36,7 @@ export default function TitleLesson({ activity }: { activity: TitleActivity }) {
   }
 
   function finish() {
-    addCompletedBook({ title: trimmed });
+    startBookDraft(trimmed);
     completeLesson(4);
     router.push("/study");
   }

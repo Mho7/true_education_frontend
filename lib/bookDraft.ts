@@ -1,15 +1,11 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { BOOK_THEMES, type BookTheme } from "./bookshelf";
+import { BOOK_THEMES, type BookExplanation, type BookTheme } from "./bookshelf";
 
-/** 그림 설명하기 결과 (아이가 말한 것을 받아 적은 글과 말한 시간) */
-export type BookExplanation = {
-  transcript: string;
-  durationMs: number;
-};
+export type { BookExplanation };
 
-/** 만들고 있는 책 한 권. 그리기 → 그림 설명하기 → 책장에 꽂기까지 같은 초안을 이어서 쓴다. */
+/** 만들고 있는 책 한 권. 제목 짓기 → 그리기 → 그림 설명하기 → 책장에 꽂기까지 같은 초안을 이어서 쓴다. */
 export type BookDraft = {
   id: string;
   title: string;
@@ -23,17 +19,17 @@ export type BookDraft = {
   explanation?: BookExplanation;
 };
 
-// TODO: 제목 짓기(4단계)를 끝낼 때 아이가 지은 제목으로 초안을 만들도록 연결한다.
-// 지금은 그리기 화면에 초안 없이 들어오면 이 제목으로 새로 만든다.
+/** 초안이 사라진 채(사이트 데이터 삭제 등) 보물상자에서 그리기로 넘어갈 때만 쓰는 제목 */
 export const DEFAULT_DRAFT_TITLE = "나의 그림책";
 
-// 새로고침해도 표지 색이 다시 뽑히지 않도록 탭(sessionStorage)에 둔다. 탭을 닫으면 사라진다.
+// 보물상자를 찾은 상태(localStorage)와 함께 남아야 하므로 초안도 localStorage에 둔다.
+// 탭을 닫았다 다시 와도 이어서 그릴 수 있고, 새로고침해도 표지 색이 다시 뽑히지 않는다.
 const STORAGE_KEY = "yeoul.bookDraft.v1";
 const CHANGE_EVENT = "yeoul:book-draft-change";
 
 let cachedRaw: string | null = null;
 let cachedDraft: BookDraft | null = null;
-// sessionStorage를 아예 쓸 수 없는 환경(사이트 데이터 차단 등)에서도 이번 화면에서는 같은 초안을 쓰도록 메모리에도 둔다.
+// 저장소를 아예 쓸 수 없는 환경(사이트 데이터 차단 등)에서도 이번 화면에서는 같은 초안을 쓰도록 메모리에도 둔다.
 let memoryDraft: BookDraft | null = null;
 
 function isDraft(value: unknown): value is BookDraft {
@@ -50,7 +46,7 @@ function isDraft(value: unknown): value is BookDraft {
 function readDraft(): BookDraft | null {
   let raw: string | null = null;
   try {
-    raw = window.sessionStorage.getItem(STORAGE_KEY);
+    raw = window.localStorage.getItem(STORAGE_KEY);
   } catch {
     return memoryDraft;
   }
@@ -72,8 +68,8 @@ function writeDraft(draft: BookDraft | null): boolean {
   memoryDraft = draft;
   let saved = true;
   try {
-    if (draft) window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    else window.sessionStorage.removeItem(STORAGE_KEY);
+    if (draft) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    else window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     saved = false;
   }
@@ -100,10 +96,16 @@ export function useBookDraft(): BookDraft | null {
   return useSyncExternalStore(subscribe, readDraft, () => null);
 }
 
-/** 초안이 있으면 그대로 돌려주고, 없을 때만 표지 색을 무작위로 골라 새로 만든다. 렌더 중이 아니라 effect·이벤트에서 부른다. */
-export function ensureBookDraft(title: string = DEFAULT_DRAFT_TITLE): BookDraft {
-  const existing = readDraft();
-  if (existing) return existing;
+/** 만들고 있는 책 (렌더 밖에서 바로 확인할 때) */
+export function readBookDraft(): BookDraft | null {
+  return readDraft();
+}
+
+/**
+ * 새 책을 시작한다. 남아 있던 초안이 있어도 버리고 새로 만든다. 표지 색은 여기서 한 번만 무작위로 고른다.
+ * 렌더 중이 아니라 이벤트에서 부른다.
+ */
+export function startBookDraft(title: string): BookDraft {
   const draft: BookDraft = {
     id: newId(),
     title,

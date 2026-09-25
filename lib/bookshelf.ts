@@ -4,6 +4,12 @@ import { useSyncExternalStore } from "react";
 
 export type BookTheme = "blue" | "green" | "pink" | "purple" | "yellow";
 
+/** 그림 설명하기 결과 (아이가 말한 것을 받아 적은 글과 말한 시간) */
+export type BookExplanation = {
+  transcript: string;
+  durationMs: number;
+};
+
 export type CompletedBook = {
   id: string;
   /** 아이가 지은 책 제목 */
@@ -13,6 +19,8 @@ export type CompletedBook = {
   theme: BookTheme;
   /** 표지 그림 영역에 넣을 이미지 URL (없으면 빈 종이색) */
   coverImage?: string;
+  /** 아이가 표지 그림을 말로 설명한 것 */
+  explanation?: BookExplanation;
 };
 
 // TODO: 백엔드가 준비되면 서버 저장소로 교체한다. 지금은 브라우저(localStorage)에만 쌓인다.
@@ -59,17 +67,34 @@ export function useCompletedBooks(): CompletedBook[] {
   return useSyncExternalStore(subscribe, readBooks, () => EMPTY);
 }
 
-/** 책 한 권을 완성했을 때 호출한다. 책장 맨 끝(다음 빈자리)에 자동으로 꽂힌다. */
-export function addCompletedBook(book: { title: string; coverImage?: string }): CompletedBook {
+/**
+ * 책 한 권을 완성했을 때 호출한다. 책장 맨 끝(다음 빈자리)에 자동으로 꽂힌다.
+ * id를 주면 같은 id의 책이 이미 있을 때 새로 꽂지 않고 그 책을 돌려준다 (새로고침·두 번 누르기 대비).
+ * theme을 주지 않으면 꽂는 순서대로 표지 디자인이 돌아간다. 저장 공간이 모자라 못 꽂으면 null.
+ */
+export function addCompletedBook(book: {
+  id?: string;
+  title: string;
+  theme?: BookTheme;
+  coverImage?: string;
+  explanation?: BookExplanation;
+}): CompletedBook | null {
   const books = readBooks();
+  const existing = book.id ? books.find((saved) => saved.id === book.id) : undefined;
+  if (existing) return existing;
   const next: CompletedBook = {
-    id: crypto.randomUUID(),
+    id: book.id ?? crypto.randomUUID(),
     title: book.title,
     coverImage: book.coverImage,
     completedAt: new Date().toISOString(),
-    theme: BOOK_THEMES[books.length % BOOK_THEMES.length],
+    theme: book.theme ?? BOOK_THEMES[books.length % BOOK_THEMES.length],
+    explanation: book.explanation,
   };
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...books, next]));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...books, next]));
+  } catch {
+    return null;
+  }
   window.dispatchEvent(new Event(CHANGE_EVENT));
   return next;
 }

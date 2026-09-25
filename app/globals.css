@@ -124,6 +124,18 @@ input[type="number"] {
   }
 }
 
+/* 보물상자: 표지 그리기 안내에서 여울이가 살짝 떠오르며 나타난다 */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* 학습 지도: 다음에 누를 발판이 은은하게 깜빡인다 */
 @keyframes pad-pulse {
   0%,
