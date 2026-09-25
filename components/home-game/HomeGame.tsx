@@ -6,6 +6,7 @@ import RoomBackground from "./RoomBackground";
 import GameCanvas from "./GameCanvas";
 import GameErrorBoundary from "./GameErrorBoundary";
 import InteractionUI from "./InteractionUI";
+import HomeMenu from "./HomeMenu";
 import CollisionDebugOverlay from "./CollisionDebugOverlay";
 import type { InteractionZone } from "@/lib/roomColliders";
 import { GAME_DEBUG } from "@/lib/gameConfig";
@@ -44,6 +45,8 @@ export default function HomeGame() {
       {/* Layer 4 */}
       <InteractionUI active={active} onInteract={handleInteract} />
 
+      {/* Layer 5 */}
+      <HomeMenu />
     </div>
   );
 }
