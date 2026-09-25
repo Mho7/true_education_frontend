@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
-import BookshelfDevPanel from "@/components/library/BookshelfDevPanel";
+import StampDevPanel from "./StampDevPanel";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { Anchor, useElementSize, type Scale } from "@/components/stage/Anchor";
-import { useCompletedBooks } from "@/lib/bookshelf";
+import { useStampCount } from "@/lib/stamps";
 import { isRewardStamp } from "@/lib/rewards";
 import RewardModal from "./RewardModal";
 import { RewardStampEmpty, RewardStampFilled } from "./RewardStamp";
@@ -38,8 +38,8 @@ function stampRotation(index: number) {
 }
 
 export default function StampScreen() {
-  // 책 한 권을 끝낼 때마다 도장 하나 — 책장에 꽂힌 책 수가 곧 도장 수다.
-  const stampCount = useCompletedBooks().length;
+  // 학습 4단계를 끝내고 보물상자를 열면 도장 1~2개를 받는다.
+  const stampCount = useStampCount();
   const sideNavWidth = useSideNavWidth();
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
   const [animateFrom] = useState(() => (typeof window === "undefined" ? 0 : readSeenCount()));
@@ -144,7 +144,7 @@ export default function StampScreen() {
             {/* 마지막 줄 도장(아래 끝 805)과 카드 아래 끝(850) 사이 */}
             <Anchor x={STAGE_WIDTH / 2} y={810} scale={scale} centerX>
               <p className="font-pen text-[26px] leading-[32px] whitespace-nowrap text-[#8B6650]">
-                책 한 권을 끝까지 학습하면 도장이 하나 찍혀요
+                학습을 끝까지 마치면 보물상자에서 도장을 받아요
               </p>
             </Anchor>
 
@@ -179,7 +179,7 @@ export default function StampScreen() {
         )}
 
         <RewardModal stampNumber={openReward} stampCount={stampCount} onClose={closeReward} />
-        <BookshelfDevPanel />
+        <StampDevPanel />
       </div>
     </main>
   );

@@ -15,6 +15,7 @@
   --font-pen: var(--font-nanum-pen);
   --font-timetable: var(--font-siganpyo);
   --font-griun: var(--font-griun-naram);
+  --font-cocochoi: var(--font-griun-cocochoi);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -83,6 +84,125 @@ input[type="number"] {
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-stamp {
+    animation: none;
+  }
+}
+
+/* 학습 지도: 말풍선·학습창이 톡 튀어나오고, 장면이 부드럽게 나타난다 */
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@utility animate-pop-in {
+  animation: pop-in 0.35s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@utility animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop-in,
+  .animate-fade-in {
+    animation: none;
+  }
+}
+
+/* 학습 지도: 다음에 누를 발판이 은은하게 깜빡인다 */
+@keyframes pad-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@utility animate-pad-pulse {
+  animation: pad-pulse 1.4s ease-in-out infinite;
+}
+
+/* 보물상자: 덜컹덜컹 흔들림, 번쩍임, 빙글빙글 빛줄기, 색종이 */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+  15% {
+    transform: translate(-10px, 2px) rotate(-1deg);
+  }
+  30% {
+    transform: translate(9px, -3px) rotate(1deg);
+  }
+  45% {
+    transform: translate(-7px, 3px) rotate(-0.6deg);
+  }
+  60% {
+    transform: translate(6px, -2px) rotate(0.6deg);
+  }
+  75% {
+    transform: translate(-3px, 1px) rotate(-0.3deg);
+  }
+}
+@utility animate-shake {
+  animation: shake 0.45s ease-in-out both;
+}
+@keyframes flash {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@utility animate-flash {
+  animation: flash 0.7s ease-out both;
+}
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@utility animate-spin-slow {
+  animation: spin-slow 14s linear infinite;
+}
+@keyframes confetti {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot));
+  }
+}
+@utility animate-confetti {
+  animation: confetti 1.6s cubic-bezier(0.15, 0.7, 0.4, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-pad-pulse,
+  .animate-shake,
+  .animate-spin-slow,
+  .animate-confetti {
     animation: none;
   }
 }
