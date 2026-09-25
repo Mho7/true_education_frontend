@@ -24,8 +24,8 @@ const SLOT_TOP = CUBBY_FLOOR_Y - SHELF_BOOK_HEIGHT;
 const BOOKS_PER_SHELF = CUBBY_CENTER_X.length;
 const slotLeft = (index: number) => CUBBY_CENTER_X[index] - SHELF_BOOK_WIDTH / 2;
 
-// 표지 이미지마다 안쪽 그림 영역의 위치가 조금씩 다르다.
-const COVER_PANEL_TOP: Record<CompletedBook["theme"], number> = { pink: 57.9, blue: 52.8 };
+// 표지 이미지마다 안쪽 그림 영역의 위치가 조금씩 다르다 (분홍만 조금 아래에 있다).
+const COVER_PANEL_TOP: Record<CompletedBook["theme"], number> = { blue: 52.8, green: 52.8, pink: 57.9, purple: 52.8, yellow: 52.8 };
 
 function formatCompletedDate(iso: string) {
   const date = new Date(iso);

@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-export type BookTheme = "pink" | "blue";
+export type BookTheme = "blue" | "green" | "pink" | "purple" | "yellow";
 
 export type CompletedBook = {
   id: string;
@@ -18,7 +18,8 @@ export type CompletedBook = {
 // TODO: 백엔드가 준비되면 서버 저장소로 교체한다. 지금은 브라우저(localStorage)에만 쌓인다.
 const STORAGE_KEY = "yeoul.bookshelf.v1";
 const CHANGE_EVENT = "yeoul:bookshelf-change";
-const THEMES: BookTheme[] = ["pink", "blue"];
+// 책이 꽂힐 때마다 이 순서대로 표지 디자인이 돌아간다 (public/library/book-<theme>.png).
+const THEMES: BookTheme[] = ["blue", "green", "pink", "purple", "yellow"];
 const EMPTY: CompletedBook[] = [];
 
 let cachedRaw: string | null = null;

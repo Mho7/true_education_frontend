@@ -206,3 +206,23 @@ input[type="number"] {
     animation: none;
   }
 }
+
+/* 번갈아 읽기: 다음 문장으로 넘어가면 문장 목록이 아래에서 위로 스르륵 올라온다 */
+@keyframes line-up {
+  from {
+    opacity: 0.4;
+    transform: translateY(102px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@utility animate-line-up {
+  animation: line-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-line-up {
+    animation: none;
+  }
+}

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState, type CSSProperties } from "react";
 import { addStamps, rollTreasureStamps } from "@/lib/stamps";
+import { resetStudyProgress } from "@/lib/studyProgress";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./studyMap";
 import { Fox, NextArrow, PillButton, SpeechBubble } from "./StudyParts";
 
@@ -60,6 +61,8 @@ export default function TreasureScene({ scale, viewWidth }: { scale: number; vie
     const count = rollTreasureStamps();
     // 애니메이션 도중에 나가도 받은 스탬프는 남도록 누르는 순간 저장한다.
     addStamps(count);
+    // 한 바퀴를 끝냈으니 다음에 학습 지도에 오면 1단계부터 다시 시작한다.
+    resetStudyProgress();
     setReward({
       count,
       confetti: [

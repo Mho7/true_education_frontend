@@ -1,10 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { useElementSize } from "@/components/stage/Anchor";
-import LessonWindow from "./LessonWindow";
+import { lessonHref } from "@/lib/studyLessons";
+import { useClearedLessons } from "@/lib/studyProgress";
 import { Fox, NextArrow, SpeechBubble } from "./StudyParts";
 import TreasureScene from "./TreasureScene";
 import {
@@ -25,14 +27,15 @@ import {
 /**
  * ready    — 발판에 서서 다음 단계 버튼을 기다린다
  * running  — 다음 발판으로 달려가는 중
- * arrived  — 발판에 도착해 한마디 한 뒤 학습창이 열린다
- * lesson   — 학습창이 열려 있다
+ * arrived  — 발판에 도착해 한마디 한다
+ * leaving  — 그 단계의 학습 페이지(/study/lesson/N)로 넘어가는 중
  * treasure — 4단계를 모두 끝내고 보물상자에 도착했다
  *
- * 다음 단계 발판을 누르면 진행한다. 1단계는 여울이가 처음 서 있는 발판이라 바로 학습창이 열리고,
- * 2~4단계는 그 발판까지 달려간 뒤 학습창이 열린다. 4단계를 끝내면 지도 끝 보물상자를 눌러 간다.
+ * 다음 단계 발판을 누르면 진행한다. 1단계는 여울이가 처음 서 있는 발판이라 바로 학습 페이지로 넘어가고,
+ * 2~4단계는 그 발판까지 달려가 한마디 한 뒤 넘어간다. 학습을 끝내고 돌아오면 끝낸 단계 수(저장됨)에 맞춰
+ * 그 발판에서 기뻐하고 있다. 4단계를 끝내면 지도 끝 보물상자를 눌러 간다.
  */
-type Mode = "ready" | "running" | "arrived" | "lesson" | "treasure";
+type Mode = "ready" | "running" | "arrived" | "leaving" | "treasure";
 
 const GREETING = "어서와!\n오늘도 힘차게 시작해보자!";
 // 2~4단계 발판에 도착했을 때 대사와 포즈 (인덱스는 STATIONS와 같다)
@@ -46,7 +49,7 @@ const TREASURE_HINT = "앞에 무언가 보여\n어서가보자!";
 const RUN_SPEED = 520;
 /** 한 걸음(깡총) 길이 (지도 px) */
 const STEP_LENGTH = 150;
-/** 도착해서 대사를 보여 준 뒤 학습창이 열리기까지 */
+/** 도착해서 대사를 보여 준 뒤 학습 페이지로 넘어가기까지 */
 const LESSON_OPEN_DELAY = 1600;
 /** 마지막 단계를 끝내고 "고생했어" 다음에 보물 힌트로 넘어가기까지 */
 const HINT_DELAY = 1800;
@@ -103,10 +106,11 @@ function legPath(leg: number): Point[] {
 }
 
 export default function StudyScreen() {
+  const router = useRouter();
   const sideNavWidth = useSideNavWidth();
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
   /** 끝낸 단계 수 (0~4). 다음에 할 단계의 발판 번호이기도 하다. */
-  const [cleared, setCleared] = useState(0);
+  const cleared = useClearedLessons();
   const [mode, setMode] = useState<Mode>("ready");
   /** 달리기 진행도 0~1 */
   const [runProgress, setRunProgress] = useState(0);
@@ -130,9 +134,13 @@ export default function StudyScreen() {
 
   useEffect(() => {
     if (mode !== "arrived") return;
-    const timer = window.setTimeout(() => setMode("lesson"), LESSON_OPEN_DELAY);
+    const timer = window.setTimeout(() => setMode("leaving"), LESSON_OPEN_DELAY);
     return () => window.clearTimeout(timer);
   }, [mode]);
+
+  useEffect(() => {
+    if (mode === "leaving") router.push(lessonHref(cleared + 1));
+  }, [mode, cleared, router]);
 
   useEffect(() => {
     if (mode !== "ready" || cleared !== LESSON_COUNT) return;
@@ -141,18 +149,13 @@ export default function StudyScreen() {
   }, [mode, cleared]);
 
   function goNext() {
-    // 1단계는 지금 서 있는 발판이라 달릴 필요 없이 바로 학습창을 연다.
+    // 1단계는 지금 서 있는 발판이라 달릴 필요 없이 바로 학습 페이지로 넘어간다.
     if (cleared === 0) {
-      setMode("lesson");
+      setMode("leaving");
       return;
     }
     setRunProgress(0);
     setMode("running");
-  }
-
-  function completeLesson() {
-    setCleared((prev) => prev + 1);
-    setMode("ready");
   }
 
   // 화면 배율: 세로를 시안 높이에 맞추고, 아주 넓은 화면이면 지도 폭에 맞춘다.
@@ -195,7 +198,7 @@ export default function StudyScreen() {
   // 여울이가 화면 오른쪽 절반에 있으면 말풍선을 왼쪽으로 띄운다.
   const bubbleFlipped = feet.x - cameraX > viewWidth / 2;
 
-  const activePad = mode === "arrived" || mode === "lesson" ? cleared : null;
+  const activePad = mode === "arrived" || mode === "leaving" ? cleared : null;
   // 지금 눌러서 갈 수 있는 곳: 다음 단계 발판 번호, 또는 보물상자
   const nextPad = mode === "ready" && cleared < LESSON_COUNT ? cleared : null;
   const chestReady = mode === "ready" && cleared === LESSON_COUNT && showTreasureHint;
@@ -310,7 +313,6 @@ export default function StudyScreen() {
           )}
         </div>
 
-        {mode === "lesson" && <LessonWindow stage={cleared + 1} scale={scale} onComplete={completeLesson} />}
 
         {mode === "treasure" && (
           <TreasureScene scale={scale} viewWidth={viewWidth} />
