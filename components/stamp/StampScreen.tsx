@@ -1,11 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import BookshelfDevPanel from "@/components/library/BookshelfDevPanel";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { Anchor, useElementSize, type Scale } from "@/components/stage/Anchor";
 import { useCompletedBooks } from "@/lib/bookshelf";
+import { isRewardStamp } from "@/lib/rewards";
+import RewardModal from "./RewardModal";
+import { RewardStampEmpty, RewardStampFilled } from "./RewardStamp";
 
 // 좌표는 Figma "Group 13" 스탬프 시안의 배경 그림(1672×902, 위쪽 창 막대 제외) 기준이다.
 const STAGE_WIDTH = 1672;
@@ -14,7 +17,7 @@ const STAGE_HEIGHT = 902;
 // 카드 안 5×3 도장 자리(가운데 좌표)
 const SLOT_X = [396, 617, 836, 1055, 1276];
 const SLOT_Y = [364, 553, 735];
-const SLOT_SIZE = 172;
+const SLOT_SIZE = 140;
 const SLOTS = SLOT_Y.flatMap((y) => SLOT_X.map((x) => ({ x: x - SLOT_SIZE / 2, y: y - SLOT_SIZE / 2 })));
 const STAMPS_PER_CARD = SLOTS.length;
 
@@ -46,6 +49,9 @@ export default function StampScreen() {
   const [selectedCard, setSelectedCard] = useState<number | null>(null);
   const card = Math.min(selectedCard ?? totalCards - 1, totalCards - 1);
   const cardStart = card * STAMPS_PER_CARD;
+  // 선물 팝업을 연 도장 번호
+  const [openReward, setOpenReward] = useState<number | null>(null);
+  const closeReward = useCallback(() => setOpenReward(null), []);
 
   useEffect(() => {
     try {
@@ -83,11 +89,39 @@ export default function StampScreen() {
                 const index = cardStart + i;
                 const stamped = index < stampCount;
                 const isNew = stamped && index >= animateFrom;
+                const stampNumber = index + 1;
+                if (isRewardStamp(stampNumber)) {
+                  return (
+                    <li key={index}>
+                      <Anchor x={slot.x} y={slot.y} scale={scale}>
+                        <button
+                          type="button"
+                          aria-label={`${stampNumber}번째 선물 도장${stamped ? "" : " (아직 안 모았어요)"}`}
+                          onClick={() => setOpenReward(stampNumber)}
+                          className="relative block cursor-pointer rounded-full transition hover:scale-105 active:scale-95"
+                          style={{ width: SLOT_SIZE, height: SLOT_SIZE }}
+                        >
+                          <RewardStampEmpty />
+                          {stamped && (
+                            <div className="absolute inset-0" style={{ rotate: `${stampRotation(index)}deg` }}>
+                              <div
+                                className={`size-full ${isNew ? "animate-stamp" : ""}`}
+                                style={isNew ? { animationDelay: `${(index - animateFrom) * 220 + 300}ms` } : undefined}
+                              >
+                                <RewardStampFilled />
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      </Anchor>
+                    </li>
+                  );
+                }
                 return (
-                  <li key={index} aria-label={stamped ? `${index + 1}번째 스탬프` : "빈 스탬프 자리"}>
+                  <li key={index} aria-label={stamped ? `${stampNumber}번째 스탬프` : "빈 스탬프 자리"}>
                     <Anchor x={slot.x} y={slot.y} scale={scale}>
                       <div className="relative" style={{ width: SLOT_SIZE, height: SLOT_SIZE }}>
-                        <Image src="/stamp/paw-empty.png" alt="" fill sizes="172px" />
+                        <Image src="/stamp/paw-empty.png" alt="" fill sizes="140px" />
                         {stamped && (
                           <div className="absolute inset-0" style={{ rotate: `${stampRotation(index)}deg` }}>
                             <div
@@ -96,7 +130,7 @@ export default function StampScreen() {
                             >
                               {/* 찍히면 아래 빈 자리(회색 발자국)를 가린다 */}
                               <div className="absolute inset-[7%] rounded-full bg-[#FCFDFD]" />
-                              <Image src="/stamp/paw-stamped.png" alt="" fill sizes="172px" />
+                              <Image src="/stamp/paw-stamped.png" alt="" fill sizes="140px" />
                             </div>
                           </div>
                         )}
@@ -106,6 +140,13 @@ export default function StampScreen() {
                 );
               })}
             </ol>
+
+            {/* 마지막 줄 도장(아래 끝 805)과 카드 아래 끝(850) 사이 */}
+            <Anchor x={STAGE_WIDTH / 2} y={810} scale={scale} centerX>
+              <p className="font-pen text-[26px] leading-[32px] whitespace-nowrap text-[#8B6650]">
+                책 한 권을 끝까지 학습하면 도장이 하나 찍혀요
+              </p>
+            </Anchor>
 
             {totalCards > 1 && (
               <Anchor x={STAGE_WIDTH / 2} y={856} scale={scale} centerX>
@@ -137,6 +178,7 @@ export default function StampScreen() {
           </>
         )}
 
+        <RewardModal stampNumber={openReward} stampCount={stampCount} onClose={closeReward} />
         <BookshelfDevPanel />
       </div>
     </main>

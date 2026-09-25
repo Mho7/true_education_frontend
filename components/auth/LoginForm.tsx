@@ -25,9 +25,10 @@ export default function LoginForm() {
       setError("아이디와 비밀번호를 입력해 주세요");
       return;
     }
-    // TODO: 인증 API가 준비되면 role과 함께 로그인 요청을 보낸다. 지금은 비밀번호 확인 없이 바로 메인(/home, 여울이 방)으로 보낸다.
+    // TODO: 인증 API가 준비되면 role과 함께 로그인 요청을 보낸다. 지금은 비밀번호 확인 없이 바로 보낸다.
+    // 학생은 메인(/home, 여울이 방), 보호자는 보호자 대시보드(/guardian)로 간다.
     signIn(loginId.trim(), role);
-    router.push("/home");
+    router.push(role === "guardian" ? "/guardian" : "/home");
   }
 
   return (
