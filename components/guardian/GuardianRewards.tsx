@@ -37,7 +37,7 @@ export default function GuardianRewards() {
   );
 }
 
-type Row = { milestone: number; name?: string; achieved: boolean; next: boolean };
+type Row = { milestone: number; name?: string; achieved: boolean };
 
 function RewardBoard({ studentId, board, onChange }: { studentId: number; board: RewardBoardResponse; onChange: (board: RewardBoardResponse) => void }) {
   const step = board.stampsPerReward;
@@ -53,10 +53,7 @@ function RewardBoard({ studentId, board, onChange }: { studentId: number; board:
       milestone,
       name: byMilestone.get(milestone)?.name,
       achieved: board.stampTotal >= milestone,
-      next: milestone === board.nextMilestone,
     }));
-
-  const nextName = byMilestone.get(board.nextMilestone)?.name;
 
   return (
     <div className="flex flex-col gap-[20px]">
@@ -70,14 +67,11 @@ function RewardBoard({ studentId, board, onChange }: { studentId: number; board:
             {board.stampTotal}
             <span className="ml-[3px] text-[20px] font-semibold text-[#4B5260]">개</span>
           </p>
-          <p className="mt-[4px] text-[14px] break-keep text-[#4B5260]">
-            도장 {step}개마다 보상 하나 · 다음 목표 <strong className="font-semibold text-[#111418]">도장 {board.nextMilestone}개</strong>
-            {nextName ? ` (🎁 ${nextName})` : " (아직 보상을 정하지 않았어요)"}
-          </p>
+          <p className="mt-[4px] text-[14px] break-keep text-[#4B5260]">도장 {step}개를 모을 때마다 보상을 하나 받아요.</p>
         </div>
         <div className="w-full max-w-[320px]">
           <div className="flex justify-between text-[13px] text-[#8A909C] tabular-nums">
-            <span>다음 목표까지</span>
+            <span>보상까지</span>
             <span>
               {current} / {step}
             </span>
@@ -147,7 +141,7 @@ function RewardRow({ studentId, row, onChange }: { studentId: number; row: Row; 
       <div className="flex flex-wrap items-center gap-[14px]">
         <span
           className={`flex h-[32px] w-[92px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold tabular-nums ${
-            row.achieved ? "bg-[#E9F6EF] text-[#1B7A45]" : row.next ? "bg-[#FFF1E8] text-[#B4560F]" : "bg-[#F3F4F6] text-[#4B5260]"
+            row.achieved ? "bg-[#E9F6EF] text-[#1B7A45]" : "bg-[#F3F4F6] text-[#4B5260]"
           }`}
         >
           도장 {row.milestone}개
@@ -198,7 +192,6 @@ function RewardRow({ studentId, row, onChange }: { studentId: number; row: Row; 
               </span>
             ) : (
               <span className="ml-auto flex gap-[6px]">
-                {row.next && <span className="self-center text-[13px] font-semibold text-[#B4560F] max-sm:hidden">다음 목표</span>}
                 <button type="button" onClick={() => setEditing(true)} disabled={busy} className={smallButton}>
                   {row.name ? "수정" : "정하기"}
                 </button>

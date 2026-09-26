@@ -11,7 +11,7 @@ import { useLoad } from "./useLoad";
 /** 계정 관리: 보호자 정보(GET /me) · 연결된 아이(GET /parents/me/students) · 로그아웃 */
 export default function GuardianAccount() {
   const router = useRouter();
-  const { students, child, selectChild } = useGuardian();
+  const { students } = useGuardian();
   const member = useCurrentMember();
   const [me, reload] = useLoad(getMe, "me");
 
@@ -47,28 +47,19 @@ export default function GuardianAccount() {
 
         <Panel title="연결된 아이" description="가입할 때 입력한 학생 코드로 연결된 아이예요">
           <ul className="flex flex-col gap-[8px]">
-            {students.map((student) => {
-              const selected = student.studentId === child.studentId;
-              return (
-                <li key={student.studentId} className="flex items-center gap-[12px] rounded-[14px] border border-[#EEF0F3] px-[14px] py-[12px]">
-                  <span className="flex size-[36px] shrink-0 items-center justify-center rounded-[10px] bg-[#EEF0FD] text-[#4F5BD5]">
-                    <UsersIcon className="size-[20px]" />
-                  </span>
-                  <span className="min-w-0 flex-1 text-[16px] font-semibold">{student.name}</span>
-                  {selected ? (
-                    <span className="text-[13px] font-semibold text-[#E8672A]">보는 중</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => selectChild(student.studentId)}
-                      className="h-[32px] cursor-pointer rounded-full border border-[#E6E8EC] px-[12px] text-[13px] font-medium text-[#4B5260] transition hover:bg-[#F7F8FA]"
-                    >
-                      이 아이 보기
-                    </button>
-                  )}
-                </li>
-              );
-            })}
+            {students.map((student) => (
+              <li key={student.studentId} className="flex items-center gap-[12px] rounded-[14px] border border-[#EEF0F3] px-[14px] py-[12px]">
+                <span className="flex size-[36px] shrink-0 items-center justify-center rounded-[10px] bg-[#EEF0FD] text-[#4F5BD5]">
+                  <UsersIcon className="size-[20px]" />
+                </span>
+                <span className="min-w-0 flex-1 text-[16px] font-semibold">{student.name}</span>
+                {/* 초록 동그라미 = 이 보호자 계정과 연결됨 */}
+                <span className="flex items-center gap-[6px] text-[13px] font-semibold text-[#1B7A45]">
+                  <span aria-hidden className="size-[10px] rounded-full bg-[#22A45D] ring-[3px] ring-[#E3F5EA]" />
+                  연결됨
+                </span>
+              </li>
+            ))}
           </ul>
         </Panel>
 

@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ChevronIcon } from "./guardianIcons";
+import type { LearningRecord } from "@/lib/guardianHome";
+import { ChatBubbleIcon, CheckIcon, ChevronIcon, OpenBookIcon, SproutIcon } from "./guardianIcons";
 
 // 보호자 화면 공통 조각 (카드·섹션 제목·상태 안내·버튼)
 
@@ -76,5 +78,53 @@ export function ActionLink({ href, children }: { href: string; children: ReactNo
     <Link href={href} className={actionClassName}>
       {children}
     </Link>
+  );
+}
+
+export function StatusChip({ record }: { record: Pick<LearningRecord, "status" | "stageLabel"> }) {
+  return record.status === "IN_PROGRESS" ? (
+    <span className="mt-[6px] flex items-center gap-[6px] rounded-full bg-[#FFF1E8] px-[10px] py-[3px] text-[13px] font-medium text-[#B4560F]">
+      <span aria-hidden className="size-[6px] rounded-full bg-[#E8672A]" />
+      {record.stageLabel} 하는 중
+    </span>
+  ) : (
+    <span className="mt-[6px] flex items-center gap-[4px] rounded-full bg-[#F3F4F6] py-[3px] pr-[10px] pl-[7px] text-[13px] font-medium text-[#4B5260]">
+      <CheckIcon className="size-[14px] text-[#1E8A4F]" />
+      독서 활동 완료
+    </span>
+  );
+}
+
+export function Cover({ record, size = "md" }: { record: Pick<LearningRecord, "coverColor" | "coverUrl">; size?: "md" | "sm" }) {
+  return (
+    <span
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-[12px] ${size === "sm" ? "size-[56px]" : "size-[64px] @[640px]:size-[84px]"} ${
+        record.coverUrl ? "border border-[#E6E8EC]" : ""
+      }`}
+      style={{
+        background: record.coverUrl ? "#FFFFFF" : `linear-gradient(150deg, ${record.coverColor}, color-mix(in srgb, ${record.coverColor} 72%, #1F2937))`,
+      }}
+    >
+      {record.coverUrl ? (
+        <Image src={record.coverUrl} alt="아이가 그린 표지" fill sizes="84px" className="object-contain" unoptimized />
+      ) : (
+        <OpenBookIcon className={`${size === "sm" ? "size-[26px]" : "size-[32px]"} text-white/90`} />
+      )}
+    </span>
+  );
+}
+
+export function StoryCard({ tone, title, text }: { tone: "good" | "help"; title: string; text: string }) {
+  const good = tone === "good";
+  return (
+    <div className={`rounded-[16px] px-[20px] py-[18px] ${good ? "bg-[#F0F8F3]" : "bg-[#FFF4EE]"}`}>
+      <p className="flex items-center gap-[10px] text-[16px] font-bold break-keep">
+        <span className={`flex size-[32px] items-center justify-center rounded-[10px] bg-white ${good ? "text-[#2E9E5B]" : "text-[#E8672A]"}`}>
+          {good ? <SproutIcon className="size-[20px]" /> : <ChatBubbleIcon className="size-[20px]" />}
+        </span>
+        {title}
+      </p>
+      <p className="mt-[10px] line-clamp-5 text-[14px] leading-[23px] break-keep text-[#3A404B]">{text}</p>
+    </div>
   );
 }

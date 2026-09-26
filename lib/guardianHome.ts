@@ -20,6 +20,8 @@ export type LearningRecord = {
    * TODO: 책별 문제 해결 결과(혼자·힌트 후·정답 공개)를 주는 보호자 API가 생기면 함께 보여 준다.
    */
   reflection?: string;
+  /** 표지 그림을 설명한 시간(ms) */
+  reflectionMs?: number;
 };
 
 export type GuardianHomeData = {
@@ -32,8 +34,11 @@ export type GuardianHomeData = {
     /** 푼 문제 수(누적) */
     activities: number;
   };
-  /** 최근 학습 기록(읽는 중인 책이 맨 위, 그다음 최근에 다 읽은 순) */
+  /** 고른 주에 다 읽은 책(최근 순). 이번 주면 읽는 중인 책이 맨 앞에 온다 */
   records: LearningRecord[];
+  /** 질문 유형별 결과(서버 판정 그대로) */
+  stages: DashboardResponse["byStage"];
+  collecting: boolean;
   reward: { current: number; goal: number; nextName?: string };
   story:
     | { kind: "collecting"; message: string }
@@ -92,8 +97,9 @@ export function toGuardianHomeData({
   const sessions = [...studyDays].filter((date) => date >= from && date <= to).length;
 
   const { inProgress } = dashboard.summary;
+  const isThisWeek = weekStartOf(new Date()).getTime() === weekStart.getTime();
   const records: LearningRecord[] = [
-    ...(inProgress
+    ...(inProgress && isThisWeek
       ? [
           {
             id: `in-progress-${inProgress.assignmentId}`,
@@ -105,16 +111,19 @@ export function toGuardianHomeData({
           },
         ]
       : []),
-    ...dashboard.reflections.map<LearningRecord>((reflection) => ({
-      id: `done-${reflection.assignmentId}`,
-      date: localDate(reflection.completedAt),
-      title: reflection.title,
-      coverColor: coverColorFor(reflection.assignmentId),
-      coverUrl: reflection.coverImageUrl ?? undefined,
-      status: "COMPLETED",
-      reflection: reflection.transcript,
-    })),
-  ].slice(0, 3);
+    ...dashboard.reflections
+      .map<LearningRecord>((reflection) => ({
+        id: `done-${reflection.assignmentId}`,
+        date: localDate(reflection.completedAt),
+        title: reflection.title,
+        coverColor: coverColorFor(reflection.assignmentId),
+        coverUrl: reflection.coverImageUrl ?? undefined,
+        status: "COMPLETED",
+        reflection: reflection.transcript,
+        reflectionMs: reflection.durationMs,
+      }))
+      .filter((record) => record.date !== null && record.date >= from && record.date <= to),
+  ];
 
   // 보상판: 목표치 사이에서 몇 개 모았는지 (예: 도장 7개, 다음 목표 10 → 2 / 5)
   const goal = rewards?.stampsPerReward ?? 5;
@@ -133,6 +142,8 @@ export function toGuardianHomeData({
       activities: dashboard.byStage.reduce((sum, row) => sum + row.total, 0),
     },
     records,
+    stages: dashboard.byStage,
+    collecting: dashboard.collecting,
     reward: { current, goal, nextName },
     story: dashboard.collecting
       ? { kind: "collecting", message: dashboard.collectingMessage ?? "데이터를 모으고 있어요" }

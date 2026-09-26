@@ -4,10 +4,9 @@ import Image from "next/image";
 import { getDashboard } from "@/lib/api/parents";
 import type { DashboardResponse } from "@/lib/api/types";
 import { coverColorFor, LEARNING_STAGE_LABELS, localDate } from "@/lib/guardianHome";
-import { Cover, StatusChip, StoryCard } from "./GuardianHome";
 import { GuardianPage, useGuardian } from "./GuardianShell";
 import { OpenBookIcon } from "./guardianIcons";
-import { ActionButton, cardClassName, Empty, Panel, StatusCard } from "./guardianUi";
+import { ActionButton, cardClassName, Cover, Empty, Panel, StatusChip, StatusCard, StoryCard } from "./guardianUi";
 import StageResults from "./StageResults";
 import { useLoad } from "./useLoad";
 

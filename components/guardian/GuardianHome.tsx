@@ -1,13 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import DesignStage from "@/components/DesignStage";
 import { getDashboard, getRewardBoard } from "@/lib/api/parents";
 import { toGuardianHomeData, weekStartOf, type GuardianHomeData, type LearningRecord } from "@/lib/guardianHome";
 import { ChildPicker, useGuardian } from "./GuardianShell";
-import { BookStackIcon, ChatBubbleIcon, CheckIcon, ChevronIcon, GiftIcon, OpenBookIcon, SproutIcon } from "./guardianIcons";
-import { ActionButton, cardClassName, SectionHeader, StatusCard } from "./guardianUi";
+import BookDetailModal from "./BookDetailModal";
+import { BookStackIcon, ChatBubbleIcon, CheckIcon, ChevronIcon, GiftIcon, OpenBookIcon } from "./guardianIcons";
+import { ActionButton, cardClassName, Cover, SectionHeader, StatusCard, StoryCard } from "./guardianUi";
+import StageResults from "./StageResults";
 import { useLoad } from "./useLoad";
 
 /**
@@ -86,7 +87,15 @@ function HomeContent({ today }: { today: string }) {
       <SummaryCard summary={data.summary} />
 
       <div className="mt-[20px] grid min-h-0 flex-1 grid-cols-1 gap-[20px] @[1100px]:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <RecentRecords records={data.records} />
+        <div className="flex min-h-0 flex-col gap-[20px]">
+          <section className={`${cardClassName} min-h-0 flex-1 p-[24px] max-sm:p-[16px]`}>
+            <SectionHeader title="질문 유형별 결과" action="전체 기록 보기" href="/guardian/records" />
+            <div className="mt-[14px]">
+              <StageResults rows={data.stages} collecting={data.collecting} showTable={false} />
+            </div>
+          </section>
+          <WeekBooks records={data.records} thisWeek={weekOffset === 0} />
+        </div>
         <div className="@container flex min-h-0 flex-col gap-[20px]">
           <RewardCard reward={data.reward} />
           <RecentStory story={data.story} />
@@ -150,20 +159,38 @@ function SummaryCard({ summary }: { summary: GuardianHomeData["summary"] }) {
   );
 }
 
-function RecentRecords({ records }: { records: LearningRecord[] }) {
+/** 고른 주에 읽은 책. 누르면 표지와 표지 그림 설명을 팝업으로 보여 준다 */
+function WeekBooks({ records, thisWeek }: { records: LearningRecord[]; thisWeek: boolean }) {
+  const [opened, setOpened] = useState<LearningRecord | null>(null);
   return (
-    <section className={`${cardClassName} @container flex min-h-0 flex-col p-[24px] max-sm:p-[16px]`}>
-      <SectionHeader title="최근 학습 기록" action="전체 기록 보기" href="/guardian/records" />
+    <section className={`${cardClassName} @container shrink-0 p-[24px] max-sm:p-[16px]`}>
+      <SectionHeader title={thisWeek ? "이번 주 읽은 책" : "이 주에 읽은 책"} />
       {records.length === 0 ? (
-        <p className="mt-[16px] rounded-[14px] bg-[#F7F8FA] px-[20px] py-[28px] text-center text-[15px] text-[#8A909C]">아직 학습 기록이 없어요.</p>
+        <p className="mt-[14px] rounded-[14px] bg-[#F7F8FA] px-[20px] py-[20px] text-center text-[15px] text-[#8A909C]">
+          {thisWeek ? "이번 주에 다 읽은 책이 아직 없어요." : "이 주에는 다 읽은 책이 없어요."}
+        </p>
       ) : (
-        <ul className="mt-[16px] flex min-h-0 flex-1 flex-col gap-[12px]">
+        <ul className="mt-[14px] flex gap-[12px] overflow-x-auto pb-[2px]">
           {records.map((record) => (
-            <RecordRow key={record.id} record={record} fill={records.length >= 3} />
+            <li key={record.id} className="w-[200px] shrink-0">
+              <button
+                type="button"
+                onClick={() => setOpened(record)}
+                className="flex w-full cursor-pointer items-center gap-[12px] rounded-[16px] border border-[#EEF0F3] p-[10px] text-left transition hover:border-[#DCDFE5] hover:bg-[#F7F8FA]"
+              >
+                <Cover record={record} size="sm" />
+                <span className="min-w-0">
+                  <span className="block truncate text-[16px] font-bold">{record.title}</span>
+                  <span className="block text-[13px] text-[#8A909C]">
+                    {record.date ? formatMonthDay(record.date) : record.stageLabel ? `${record.stageLabel} 하는 중` : "읽는 중"}
+                  </span>
+                </span>
+              </button>
+            </li>
           ))}
-          {records.length < 3 && <li className="px-[4px] pt-[4px] text-[14px] text-[#A3A8B2]">책을 다 읽을 때마다 여기에 차곡차곡 쌓여요.</li>}
         </ul>
       )}
+      <BookDetailModal record={opened} onClose={() => setOpened(null)} />
     </section>
   );
 }
@@ -171,78 +198,6 @@ function RecentRecords({ records }: { records: LearningRecord[] }) {
 function formatMonthDay(date: string) {
   const [, month, day] = date.split("-").map(Number);
   return `${month}월 ${day}일`;
-}
-
-/** fill: 세 줄이 다 차면 카드 높이를 나눠 채운다(시안처럼). 적으면 내용 높이만큼만 */
-function RecordRow({ record, fill }: { record: LearningRecord; fill: boolean }) {
-  const inProgress = record.status === "IN_PROGRESS";
-  return (
-    <li
-      className={`flex flex-wrap items-center gap-[14px] rounded-[16px] border border-[#EEF0F3] px-[16px] py-[12px] @[640px]:flex-nowrap @[640px]:gap-[24px] @[640px]:py-[16px] ${
-        fill ? "@[640px]:flex-1" : ""
-      }`}
-    >
-      <div className="flex min-w-0 flex-1 basis-full items-center gap-[16px] @[640px]:basis-auto @[640px]:gap-[20px]">
-        <Cover record={record} />
-        <div className="flex min-w-0 flex-col items-start">
-          {record.date ? (
-            <time dateTime={record.date} className="text-[14px] font-medium text-[#8A909C]">
-              {formatMonthDay(record.date)}
-            </time>
-          ) : (
-            <span className="text-[14px] font-medium text-[#8A909C]">지금 읽는 책</span>
-          )}
-          <p className="mt-[2px] max-w-full truncate text-[21px] leading-[30px] font-bold tracking-[-0.01em]">{record.title}</p>
-          <StatusChip record={record} />
-        </div>
-      </div>
-      <div className="min-w-0 shrink-0 border-[#EEF0F3] @[640px]:w-[300px] @[640px]:border-l @[640px]:pl-[28px]">
-        {record.reflection ? (
-          <figure>
-            <figcaption className="text-[13px] font-semibold text-[#8A909C]">표지 그림 설명</figcaption>
-            <blockquote className="mt-[4px] line-clamp-2 text-[15px] leading-[23px] break-keep text-[#2A2F37]">“{record.reflection}”</blockquote>
-          </figure>
-        ) : (
-          <p className="text-[14px] leading-[22px] break-keep text-[#8A909C]">
-            {inProgress ? "책을 다 읽고 표지를 그리면, 그림을 설명한 말이 여기에 보여요." : "아직 기록이 없어요."}
-          </p>
-        )}
-      </div>
-    </li>
-  );
-}
-
-export function StatusChip({ record }: { record: Pick<LearningRecord, "status" | "stageLabel"> }) {
-  return record.status === "IN_PROGRESS" ? (
-    <span className="mt-[6px] flex items-center gap-[6px] rounded-full bg-[#FFF1E8] px-[10px] py-[3px] text-[13px] font-medium text-[#B4560F]">
-      <span aria-hidden className="size-[6px] rounded-full bg-[#E8672A]" />
-      {record.stageLabel} 하는 중
-    </span>
-  ) : (
-    <span className="mt-[6px] flex items-center gap-[4px] rounded-full bg-[#F3F4F6] py-[3px] pr-[10px] pl-[7px] text-[13px] font-medium text-[#4B5260]">
-      <CheckIcon className="size-[14px] text-[#1E8A4F]" />
-      독서 활동 완료
-    </span>
-  );
-}
-
-export function Cover({ record, size = "md" }: { record: Pick<LearningRecord, "coverColor" | "coverUrl">; size?: "md" | "sm" }) {
-  return (
-    <span
-      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-[12px] ${size === "sm" ? "size-[56px]" : "size-[64px] @[640px]:size-[84px]"} ${
-        record.coverUrl ? "border border-[#E6E8EC]" : ""
-      }`}
-      style={{
-        background: record.coverUrl ? "#FFFFFF" : `linear-gradient(150deg, ${record.coverColor}, color-mix(in srgb, ${record.coverColor} 72%, #1F2937))`,
-      }}
-    >
-      {record.coverUrl ? (
-        <Image src={record.coverUrl} alt="아이가 그린 표지" fill sizes="84px" className="object-contain" unoptimized />
-      ) : (
-        <OpenBookIcon className={`${size === "sm" ? "size-[26px]" : "size-[32px]"} text-white/90`} />
-      )}
-    </span>
-  );
 }
 
 function RewardCard({ reward }: { reward: GuardianHomeData["reward"] }) {
@@ -301,20 +256,5 @@ function RecentStory({ story }: { story: GuardianHomeData["story"] }) {
         </div>
       )}
     </section>
-  );
-}
-
-export function StoryCard({ tone, title, text }: { tone: "good" | "help"; title: string; text: string }) {
-  const good = tone === "good";
-  return (
-    <div className={`rounded-[16px] px-[20px] py-[18px] ${good ? "bg-[#F0F8F3]" : "bg-[#FFF4EE]"}`}>
-      <p className="flex items-center gap-[10px] text-[16px] font-bold break-keep">
-        <span className={`flex size-[32px] items-center justify-center rounded-[10px] bg-white ${good ? "text-[#2E9E5B]" : "text-[#E8672A]"}`}>
-          {good ? <SproutIcon className="size-[20px]" /> : <ChatBubbleIcon className="size-[20px]" />}
-        </span>
-        {title}
-      </p>
-      <p className="mt-[10px] line-clamp-5 text-[14px] leading-[23px] break-keep text-[#3A404B]">{text}</p>
-    </div>
   );
 }

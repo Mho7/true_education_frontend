@@ -5,12 +5,12 @@ import type { DashboardResponse, DashboardStageStatus } from "@/lib/api/types";
 
 type StageRow = DashboardResponse["byStage"][number];
 
-// 스스로 맞힘 → 힌트 보고 맞힘 → 정답 공개. 좋은 쪽이 진하도록 주황 한 가지 색의 세 단계
-// (dataviz 검증: 밝기 단조·단계 간격·흰 바탕 대비 모두 통과).
+// 스스로 맞힘(초록) → 힌트 보고 맞힘(노랑) → 정답 공개(빨강). 신호등처럼 바로 읽히게 하되,
+// 색약에서도 구분되도록 밝기를 벌렸다(dataviz 검증: 모든 쌍 CVD ΔE ≥ 9, 일반 ΔE ≥ 16 통과. 노랑은 바탕 대비가 낮아 칸 안 숫자·범례·표로 보완).
 const PARTS = [
-  { key: "firstTryRate", label: "스스로 맞힘", color: "#8F3C12", ink: "#FFFFFF" },
-  { key: "afterRetryRate", label: "힌트 보고 맞힘", color: "#D2651F", ink: "#FFFFFF" },
-  { key: "revealedRate", label: "정답 공개", color: "#EDA16A", ink: "#2B2420" },
+  { key: "firstTryRate", label: "스스로 맞힘", color: "#176A42", ink: "#FFFFFF" },
+  { key: "afterRetryRate", label: "힌트 보고 맞힘", color: "#DDA22A", ink: "#111418" },
+  { key: "revealedRate", label: "정답 공개", color: "#EA6353", ink: "#111418" },
 ] as const;
 
 type PartKey = (typeof PARTS)[number]["key"];
@@ -27,7 +27,7 @@ const percent = (rate: number | null) => `${Math.round((rate ?? 0) * 100)}%`;
 /** 이 비율보다 좁은 칸에는 숫자를 넣지 않는다(툴팁·표에서 볼 수 있다) */
 const INLINE_LABEL_MIN = 0.14;
 
-export default function StageResults({ rows, collecting }: { rows: StageRow[]; collecting: boolean }) {
+export default function StageResults({ rows, collecting, showTable = true }: { rows: StageRow[]; collecting: boolean; showTable?: boolean }) {
   const [active, setActive] = useState<{ stage: string; key: PartKey } | null>(null);
 
   return (
@@ -103,7 +103,7 @@ export default function StageResults({ rows, collecting }: { rows: StageRow[]; c
         })}
       </ul>
 
-      {!collecting && (
+      {!collecting && showTable && (
         <details className="mt-[12px] text-[13px] text-[#4B5260]">
           <summary className="cursor-pointer text-[#8A909C] hover:text-[#4B5260]">표로 보기</summary>
           <table className="mt-[8px] w-full text-left tabular-nums">
