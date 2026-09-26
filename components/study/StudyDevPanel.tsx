@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { resetStudyProgress } from "@/lib/studyProgress";
+import DailyStudyCompleteModal from "./DailyStudyCompleteModal";
 
 // 개발 모드에서만 학습 화면 오른쪽 위에 뜨는 패널. 실제 배포(npm run build)에서는 렌더링되지 않는다.
 export default function StudyDevPanel() {
@@ -27,8 +28,26 @@ export default function StudyDevPanel() {
           >
             인트로 다시 보기
           </button>
+          <DailyStudyCompletePreview />
         </div>
       )}
     </div>
+  );
+}
+
+// TODO(preview): 오늘 학습 완료 팝업 디자인 확인용 임시 버튼. 필요 없어지면 이 함수와 위의 import·사용처를 지운다.
+function DailyStudyCompletePreview() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="cursor-pointer rounded-full bg-white px-3 py-1.5 text-[13px] font-medium text-[#5A4032] shadow-sm ring-1 ring-[#D9CFC4] transition hover:bg-[#FBF4EC]"
+        onClick={() => setOpen(true)}
+      >
+        오늘 학습 완료 팝업 미리보기
+      </button>
+      <DailyStudyCompleteModal open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }
