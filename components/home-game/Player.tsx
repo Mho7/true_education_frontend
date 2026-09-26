@@ -39,7 +39,12 @@ const ANIMATION_FADE_SECONDS = 0.25;
 // GLB를 다시 export하면 클립 이름이 바뀔 수 있으므로, 우선순위 후보 목록을 먼저 찾고
 // 없으면 이름에 키워드가 포함된 클립을 fallback으로 탐색한다 (하드코딩 가정 금지).
 const IDLE_CLIP_CANDIDATES = ["Yeoul_Idle", "Idle"];
-const WALK_CLIP_CANDIDATES = ["Yeoul_Walk", "Walk", "Walking"];
+// 이동 중에는 새 달리기 클립을 쓴다. 없는 GLB면 예전 걷기 클립으로 돌아간다.
+const WALK_CLIP_CANDIDATES = ["Yeoul_Run_New", "Yeoul_Walk", "Walk", "Walking"];
+// 이동 클립 재생 속도. Yeoul_Run_New는 한 사이클이 0.83초로 느려서 그대로 두면 걷는 것처럼 보이므로
+// 발걸음이 약 0.6초에 한 번 돌도록 빠르게 튼다. 그 밖의 걷기 클립은 예전처럼 조금 느리게 튼다.
+const MOVE_CLIP_TIME_SCALE: Record<string, number> = { Yeoul_Run_New: 1.4 };
+const DEFAULT_MOVE_TIME_SCALE = 0.8;
 // 클릭/터치 목표 지점까지 이 거리(world unit) 안으로 들어오면 도착으로 본다.
 const ARRIVE_DISTANCE = 0.05;
 // 목표 지점으로 가는 도중 벽/가구에 막혀 이 시간(초) 이상 못 움직이면 이동을 포기한다.
@@ -159,7 +164,7 @@ export default function Player({
 
   useEffect(() => {
     if (idleClip) actions[idleClip]?.reset().fadeIn(ANIMATION_FADE_SECONDS).play();
-    if (walkClip) actions[walkClip]?.setEffectiveTimeScale(0.8);
+    if (walkClip) actions[walkClip]?.setEffectiveTimeScale(MOVE_CLIP_TIME_SCALE[walkClip] ?? DEFAULT_MOVE_TIME_SCALE);
     return () => {
       if (idleClip) actions[idleClip]?.fadeOut(ANIMATION_FADE_SECONDS);
       if (walkClip) actions[walkClip]?.fadeOut(ANIMATION_FADE_SECONDS);
