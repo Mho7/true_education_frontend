@@ -124,3 +124,13 @@ export function ChatBubbleIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function UsersIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className={className} {...line}>
+      <circle cx="9" cy="8.5" r="3.2" />
+      <path d="M3.5 19c0-3.2 2.5-5.3 5.5-5.3s5.5 2.1 5.5 5.3" />
+      <path d="M15.5 5.6a3.2 3.2 0 0 1 0 6M17.5 13.9c1.9.7 3 2.5 3 5.1" />
+    </svg>
+  );
+}
