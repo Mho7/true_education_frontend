@@ -50,12 +50,12 @@ export function LibraryIcon(props: IconProps) {
 export function StampIcon(props: IconProps) {
   return (
     <MenuIcon {...props}>
-      {/* 속이 빈 발자국: 통통한 발바닥 + 바깥으로 살짝 기운 콩 모양 발가락 4개 */}
-      <path d="M12 12.2c-1.3 0-2.4.7-3.3 1.8l-1.9 2.2c-.7.8-1.1 1.7-1.1 2.6 0 1.6 1.3 2.7 2.9 2.7.9 0 1.6-.3 2.3-.6.4-.2.7-.3 1.1-.3s.7.1 1.1.3c.7.3 1.4.6 2.3.6 1.6 0 2.9-1.1 2.9-2.7 0-.9-.4-1.8-1.1-2.6l-1.9-2.2c-.9-1.1-2-1.8-3.3-1.8Z" />
-      <ellipse cx="4.7" cy="10.6" rx="1.8" ry="2.3" transform="rotate(-28 4.7 10.6)" />
-      <ellipse cx="9" cy="6.2" rx="2" ry="2.6" transform="rotate(-10 9 6.2)" />
-      <ellipse cx="15" cy="6.2" rx="2" ry="2.6" transform="rotate(10 15 6.2)" />
-      <ellipse cx="19.3" cy="10.6" rx="1.8" ry="2.3" transform="rotate(28 19.3 10.6)" />
+      {/* 속이 빈 발자국: 둥글둥글한 발바닥 + 동그란 발가락 4개 */}
+      <path d="M12 12.8c3.2 0 6.2 2.9 6.2 5.3 0 1.9-1.5 2.9-3.1 2.9-1.2 0-2-.5-3.1-.5s-1.9.5-3.1.5c-1.6 0-3.1-1-3.1-2.9 0-2.4 3-5.3 6.2-5.3Z" />
+      <circle cx="4.6" cy="10.4" r="1.7" />
+      <circle cx="8.8" cy="6.2" r="1.9" />
+      <circle cx="15.2" cy="6.2" r="1.9" />
+      <circle cx="19.4" cy="10.4" r="1.7" />
     </MenuIcon>
   );
 }
