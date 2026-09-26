@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import LessonLoader from "@/components/study/lesson/LessonLoader";
-import TitleLesson from "@/components/study/lesson/TitleLesson";
 import { LESSON_COUNT } from "@/lib/studyLessons";
-import { getTitleActivity } from "@/lib/titleActivity";
 
 export const metadata: Metadata = {
   title: "학습 | 여울",
@@ -20,9 +18,6 @@ export default async function LessonPage(props: PageProps<"/study/lesson/[step]"
   const { step } = await props.params;
   const stepNumber = Number(step);
   if (!Number.isInteger(stepNumber) || stepNumber < 1 || stepNumber > LESSON_COUNT) notFound();
-  // TODO(#5 백엔드 패치): 1~3단계는 서버 데이터 로딩으로 바뀌기 전까지 브라우저에서 불러온다(LessonLoader).
-  if (stepNumber === 1) return <LessonLoader step={1} />;
-  if (stepNumber === 2) return <LessonLoader step={2} />;
-  if (stepNumber === 3) return <LessonLoader step={3} />;
-  return <TitleLesson activity={await getTitleActivity()} />;
+  // TODO(#5 백엔드 패치): 단계 데이터는 서버 데이터 로딩으로 바뀌기 전까지 브라우저에서 불러온다(LessonLoader).
+  return <LessonLoader step={stepNumber as 1 | 2 | 3 | 4} />;
 }

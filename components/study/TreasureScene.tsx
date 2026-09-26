@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { DEFAULT_DRAFT_TITLE, readBookDraft, startBookDraft } from "@/lib/bookDraft";
 import { markDailyStudyCompleted } from "@/lib/dailyStudy";
-import { addStamps, rollTreasureStamps } from "@/lib/stamps";
+import { rollTreasureStamps, takeEarnedStamps } from "@/lib/stamps";
 import { markTreasureFound, readTreasureState, resetStudyProgress, type TreasureState } from "@/lib/studyProgress";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./studyMap";
 import { Fox, NextArrow, PillButton, SpeechBubble } from "./StudyParts";
@@ -97,9 +97,8 @@ export default function TreasureScene({ scale, viewWidth, resume, onOpen }: Trea
     if (openedRef.current || readTreasureState() !== "reward-pending") return;
     openedRef.current = true;
     onOpen();
-    const count = rollTreasureStamps();
-    // 애니메이션 도중에 나가도 받은 스탬프는 남도록 누르는 순간 저장한다.
-    addStamps(count);
+    // 스탬프는 책을 완료할 때 서버가 이미 적립했다. 여기서는 서버가 정한 수(1~2개)를 보여 주기만 한다.
+    const count = takeEarnedStamps() ?? rollTreasureStamps();
     // 스탬프를 받은 이 순간을 오늘 학습을 끝낸 때로 기록한다. 같은 날에는 다시 학습하러 들어올 수 없다.
     markDailyStudyCompleted();
     // 한 바퀴를 끝냈으니 다음에 학습 지도에 오면 1단계부터 다시 시작한다.

@@ -6,6 +6,11 @@ import type {
   OrderingAttemptRequest,
   OrderingAttemptResponse,
   OrderingResponse,
+  SaveDrawingResponse,
+  SaveReflectionRequest,
+  SaveReflectionResponse,
+  SaveTitleRequest,
+  SaveTitleResponse,
   ReadingResponse,
   SaveReadingPageRequest,
   SaveReadingPageResponse,
@@ -44,4 +49,21 @@ export function getOrdering(assignmentId: number) {
 /** 채점은 서버가 한다(최대 3회). 이미 끝났으면 409 */
 export function submitOrdering(assignmentId: number, body: OrderingAttemptRequest) {
   return apiRequest<OrderingAttemptResponse>(`/assignments/${assignmentId}/ordering/attempts`, { method: "POST", body });
+}
+
+/** 제목 짓기 단계가 아니면 409 */
+export function saveTitle(assignmentId: number, body: SaveTitleRequest) {
+  return apiRequest<SaveTitleResponse>(`/assignments/${assignmentId}/title`, { method: "PUT", body });
+}
+
+/** 표지 그림(PNG/WebP, 2MB 이하). 그림 그리기 단계가 아니면 409 */
+export function saveDrawing(assignmentId: number, image: Blob) {
+  const form = new FormData();
+  form.append("image", image, image.type === "image/webp" ? "cover.webp" : "cover.png");
+  return apiRequest<SaveDrawingResponse>(`/assignments/${assignmentId}/drawing`, { method: "POST", body: form });
+}
+
+/** 마지막 단계. 저장하면 책을 완료하고 스탬프를 적립한다. 받아 적은 글이 비면 422, 설명 말하기 단계가 아니면 409 */
+export function saveReflection(assignmentId: number, body: SaveReflectionRequest) {
+  return apiRequest<SaveReflectionResponse>(`/assignments/${assignmentId}/reflection`, { method: "POST", body });
 }

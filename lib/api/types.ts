@@ -228,3 +228,42 @@ export type OrderingAttemptResponse = {
 
 /** GET /books/{bookId}/lines/{lineId}/tts. 음성을 만들지 못하면 503 */
 export type LineTtsResponse = { audioUrl: string };
+
+// ---------- 제목 짓기 · 표지 그림 · 설명 말하기 ----------
+
+/** 단계 저장 공통 응답. 마지막 단계(설명 말하기)를 마치면 completed·stampsEarned·stampTotal이 온다. */
+export type StageResult = {
+  stage: LearningStage;
+  completed?: boolean;
+  /** 이번에 받은 스탬프 수(1 또는 2) */
+  stampsEarned?: number;
+  /** 누적 스탬프 수 */
+  stampTotal?: number;
+};
+
+/** PUT /assignments/{id}/title */
+export type SaveTitleRequest = { title: string };
+export type SaveTitleResponse = StageResult & { title: string };
+
+/** POST /assignments/{id}/drawing (multipart 필드 image, PNG/WebP 2MB 이하) */
+export type SaveDrawingResponse = StageResult & { imageUrl: string };
+
+/** POST /assignments/{id}/reflection. 받아 적은 글이 비었으면 422 */
+export type SaveReflectionRequest = { transcript: string; durationMs: number };
+export type SaveReflectionResponse = StageResult & { transcript: string };
+
+// ---------- 스탬프 · 보상 · 책장 (학생) ----------
+
+/** GET /students/me/stamps */
+export type StampTotalResponse = { total: number };
+
+/** GET /bookshelf 의 한 권 */
+export type ShelfItem = {
+  assignmentId: number;
+  /** 아이가 지은 제목, 없으면 원제 */
+  title: string;
+  originalTitle: string;
+  /** 아이가 그린 표지, 없으면 책 기본 표지(없으면 null) */
+  coverImageUrl: string | null;
+  completedAt: string;
+};

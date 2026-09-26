@@ -39,7 +39,7 @@ export default function BookshelfDevPanel() {
       </button>
       {open && (
         <div className="flex flex-col gap-2 rounded-2xl bg-white/85 p-3 shadow-lg backdrop-blur">
-          <p className="text-[12px] text-[#8A7F76]">더미 책 (학습 완료 가정)</p>
+          <p className="text-[12px] text-[#8A7F76]">더미 책 (이 브라우저 화면에만, 서버 책 뒤에)</p>
           <div className="flex gap-2">
             <button type="button" className={buttonClassName} onClick={() => addBooks(1)}>
               +1권

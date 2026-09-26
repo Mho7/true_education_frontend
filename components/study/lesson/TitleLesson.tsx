@@ -2,24 +2,32 @@
 
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
+import { errorMessage, isApiError } from "@/lib/api/client";
+import { saveTitle } from "@/lib/api/learning";
 import { startBookDraft } from "@/lib/bookDraft";
 import { LESSON_COUNT } from "@/lib/studyLessons";
 import { completeLesson } from "@/lib/studyProgress";
-import { GENERAL_PROMPTS, type TitleActivity } from "@/lib/titleActivity";
+import { GENERAL_PROMPTS, HINT_PROMPTS } from "@/lib/titleActivity";
 import LessonFrame from "./LessonFrame";
 
 /**
  * 시안 "AI독서서비스 (5)":
  * - 떠올리기 질문 3개를 보며 아이디어 메모를 적고, 제목을 적으면 "제목 완성하기"가 켜진다
  * - "생각이 잘 안 나요"를 누르면 이 이야기에 맞춘 힌트 질문으로 바뀌고, "처음 질문 보기"로 돌아간다
- * - 완성하면 내가 지은 제목과 원래 제목을 함께 보여 주고, "이동하기"로 4단계를 끝낸다
+ * - 완성하면 내가 지은 제목과 원래 제목을 함께 보여 주고, "이동하기"를 누르면 제목을 서버에 저장(PUT title)하고 4단계를 끝낸다
  *   (아이가 지은 제목으로 새 책 초안을 만든다. 책장에는 보물상자에서 표지를 그리고 설명까지 끝내야 꽂힌다)
  */
 const TITLE_MAX_LENGTH = 30;
 // 시안 캔버스 좌표 (1104×900, 사이드바 제외)
 const FORM = { left: 203, width: 698 };
 
-export default function TitleLesson({ activity }: { activity: TitleActivity }) {
+type TitleLessonProps = {
+  assignmentId: number;
+  /** 원래 이야기의 제목 (완성 화면에서 보여 준다) */
+  originalTitle: string;
+};
+
+export default function TitleLesson({ assignmentId, originalTitle }: TitleLessonProps) {
   const router = useRouter();
   const memoId = useId();
   const titleId = useId();
@@ -27,18 +35,30 @@ export default function TitleLesson({ activity }: { activity: TitleActivity }) {
   const [memo, setMemo] = useState("");
   const [title, setTitle] = useState("");
   const [done, setDone] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const trimmed = title.trim();
-  const prompts = showHint ? activity.hintQuestions : GENERAL_PROMPTS;
+  const prompts = showHint ? HINT_PROMPTS : GENERAL_PROMPTS;
 
   function complete() {
     if (!trimmed) return;
     setDone(true);
   }
 
-  function finish() {
-    startBookDraft(trimmed);
-    completeLesson(4);
-    router.push("/study");
+  async function finish() {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await saveTitle(assignmentId, { title: trimmed });
+      startBookDraft(saved.title, assignmentId);
+      // TODO(#5 백엔드 패치): 학습 지도 진행 상태가 서버로 바뀌면 이 호출은 빠진다.
+      completeLesson(4);
+      router.push("/study");
+    } catch (caught) {
+      setError(isApiError(caught, 409) ? "제목을 저장할 차례가 아니에요. 학습 지도로 돌아가 다시 시작해 주세요." : errorMessage(caught));
+      setSaving(false);
+    }
   }
 
   return (
@@ -64,11 +84,18 @@ export default function TitleLesson({ activity }: { activity: TitleActivity }) {
             className="absolute flex animate-pop-in items-center justify-center rounded-[16px] border-2 border-[#ECE3D3] bg-white px-[24px] text-center text-[30px] font-bold break-keep text-[#2B2420]"
             style={{ left: 332, top: 633, width: 432, height: 95, animationDelay: "900ms" }}
           >
-            {activity.originalTitle}
+            {originalTitle}
           </p>
 
+          {error && (
+            <p role="alert" className="absolute inset-x-0 top-[736px] text-center text-[17px] font-bold text-[#C4472F]">
+              {error}
+            </p>
+          )}
           <div className="absolute top-[763px] left-1/2 -translate-x-1/2">
-            <OrangeButton onClick={finish}>이동하기</OrangeButton>
+            <OrangeButton onClick={() => void finish()} disabled={saving}>
+              {saving ? "저장하는 중…" : "이동하기"}
+            </OrangeButton>
           </div>
         </section>
       ) : (

@@ -28,6 +28,7 @@ function messageFrom(body: unknown, fallback: string): string {
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
+  /** 객체는 JSON으로, FormData(파일 올리기)는 그대로 보낸다 */
   body?: unknown;
   signal?: AbortSignal;
 };
@@ -35,11 +36,12 @@ type RequestOptions = {
 export async function apiRequest<T>(path: string, { method = "GET", body, signal }: RequestOptions = {}): Promise<T> {
   let response: Response;
   try {
+    const isForm = body instanceof FormData;
     response = await fetch(`${API_BASE_URL}${path}`, {
       method,
       credentials: "include",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined || isForm ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
       signal,
     });
   } catch (error) {
