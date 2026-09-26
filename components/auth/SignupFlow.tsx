@@ -8,8 +8,10 @@ import { ChevronLeftIcon, GraduationCapIcon, UsersIcon } from "@/components/auth
 import { registerMember, type Member, type MemberRole } from "@/lib/session";
 import { CheckboxField, TextField } from "@/components/auth/SignupFields";
 import SignupStepper from "@/components/auth/SignupStepper";
+import ConsentDetailModal from "@/components/auth/ConsentDetailModal";
+import { CONSENT_SCREENS, type ConsentDetail } from "@/lib/signupConsents";
 
-type Step = "type" | "info" | "done";
+type Step = "type" | "consent" | "info" | "done";
 
 const ROLE_OPTIONS: { value: MemberRole; title: string; description: string; Icon: typeof UsersIcon }[] = [
   { value: "student", title: "학생으로 가입", description: "책을 읽고 여울이와 함께 자라요", Icon: GraduationCapIcon },
@@ -28,6 +30,8 @@ export default function SignupFlow() {
   const [step, setStep] = useState<Step>("type");
   const [role, setRole] = useState<MemberRole>("student");
   const [member, setMember] = useState<Member | null>(null);
+  // 정보 입력에서 뒤로 와도 체크한 항목이 남도록 여기서 들고 있는다. 가입 유형을 바꾸면 항목이 달라지므로 비운다.
+  const [agreedIds, setAgreedIds] = useState<string[]>([]);
 
   return (
     <main className="relative min-h-screen flex-1 overflow-hidden bg-[#F7EEE3] bg-[linear-gradient(90deg,#F6E6D2_0%,#FBF6F0_100%)] lg:h-screen">
@@ -42,11 +46,29 @@ export default function SignupFlow() {
 
         <div className="lg:absolute lg:inset-0 lg:flex lg:items-center lg:justify-center">
           <div className="w-[537px] max-w-full rounded-[24px] border border-white/90 bg-white/[0.88] px-[51px] py-[37px] shadow-[0_20px_50px_rgba(140,106,79,0.12)] backdrop-blur-[12px] max-sm:px-6">
-            {step === "type" && <TypeStep role={role} onRoleChange={setRole} onNext={() => setStep("info")} />}
+            {step === "type" && (
+              <TypeStep
+                role={role}
+                onRoleChange={(next) => {
+                  if (next !== role) setAgreedIds([]);
+                  setRole(next);
+                }}
+                onNext={() => setStep("consent")}
+              />
+            )}
+            {step === "consent" && (
+              <ConsentStep
+                role={role}
+                agreedIds={agreedIds}
+                onAgreedChange={setAgreedIds}
+                onBack={() => setStep("type")}
+                onNext={() => setStep("info")}
+              />
+            )}
             {step === "info" && (
               <InfoStep
                 role={role}
-                onBack={() => setStep("type")}
+                onBack={() => setStep("consent")}
                 onComplete={(registered) => {
                   setMember(registered);
                   setStep("done");
@@ -73,7 +95,7 @@ function StepHeader({ back, title, subtitle, current }: StepHeaderProps) {
     <header className="flex flex-col items-center">
       <div className="h-5 self-start">{back}</div>
       <h1 className="mt-[10px] font-display text-[34px] leading-[38px] text-[#8B6650]">{title}</h1>
-      <p className="mt-[12px] font-pen text-[25px] leading-[32px] text-[#6B5446]">{subtitle}</p>
+      <p className="mt-[12px] text-center font-pen text-[25px] leading-[32px] break-keep text-[#6B5446]">{subtitle}</p>
       <div className="mt-[18px]">
         <SignupStepper current={current} />
       </div>
@@ -158,10 +180,104 @@ function TypeStep({
   );
 }
 
+function ConsentStep({
+  role,
+  agreedIds,
+  onAgreedChange,
+  onBack,
+  onNext,
+}: {
+  role: MemberRole;
+  agreedIds: string[];
+  onAgreedChange: (ids: string[]) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const { title, subtitle, allLabel, submitLabel, errorText, items } = CONSENT_SCREENS[role];
+  const [openDetail, setOpenDetail] = useState<ConsentDetail | null>(null);
+  const [showError, setShowError] = useState(false);
+  const allAgreed = items.every((item) => agreedIds.includes(item.id));
+
+  function toggle(id: string, checked: boolean) {
+    onAgreedChange(checked ? [...agreedIds, id] : agreedIds.filter((agreedId) => agreedId !== id));
+    setShowError(false);
+  }
+
+  function handleSubmit() {
+    // 모든 항목이 필수라서 전부 체크해야 넘어간다.
+    if (!allAgreed) {
+      setShowError(true);
+      return;
+    }
+    onNext();
+  }
+
+  return (
+    <>
+      <StepHeader
+        back={
+          <button type="button" onClick={onBack} className={`cursor-pointer ${backClassName}`}>
+            <ChevronLeftIcon className="size-[14px] text-[#8B6650]" />
+            가입 유형 다시 선택
+          </button>
+        }
+        title={title}
+        subtitle={subtitle}
+        current={1}
+      />
+
+      <div className="mt-[24px] flex flex-col">
+        {allLabel && (
+          <CheckboxField
+            checked={allAgreed}
+            onChange={(checked) => {
+              onAgreedChange(checked ? items.map((item) => item.id) : []);
+              setShowError(false);
+            }}
+            className="mb-[14px] rounded-[12px] bg-[#FBF4EC] px-[16px] py-[14px] text-[15px] font-bold text-[#5A4032]"
+          >
+            {allLabel}
+          </CheckboxField>
+        )}
+        <ul className="flex flex-col gap-[14px]">
+          {items.map((item) => (
+            <li key={item.id} className="flex flex-col">
+              <CheckboxField checked={agreedIds.includes(item.id)} onChange={(checked) => toggle(item.id, checked)} className="px-[16px]">
+                <span className="flex flex-col gap-[2px]">
+                  <span className="font-bold break-keep text-[#5A4032]">{item.label}</span>
+                  <span className="text-[12px] leading-[18px] break-keep text-[#8A7F76]">{item.description}</span>
+                </span>
+              </CheckboxField>
+              <button
+                type="button"
+                onClick={() => setOpenDetail(item.detail)}
+                className="mt-[2px] ml-[46px] cursor-pointer self-start text-[12px] font-medium text-[#8B6650] hover:underline"
+              >
+                자세히 보기 &gt;
+              </button>
+            </li>
+          ))}
+        </ul>
+        {showError && (
+          <p role="alert" className="mt-[12px] text-center text-[12px] text-[#D0582A]">
+            {errorText}
+          </p>
+        )}
+      </div>
+
+      <button type="button" onClick={handleSubmit} className={`mt-[22px] ${primaryButtonClassName}`}>
+        {submitLabel}
+      </button>
+
+      <ConsentDetailModal detail={openDetail} onClose={() => setOpenDetail(null)} />
+    </>
+  );
+}
+
 const MIN_AGE = 3;
 const MAX_AGE = 19;
 
-type InfoErrors = Partial<Record<"name" | "age" | "loginId" | "password" | "passwordConfirm" | "studentCode" | "terms", string>>;
+type InfoErrors = Partial<Record<"name" | "age" | "loginId" | "password" | "passwordConfirm" | "studentCode", string>>;
 
 function InfoStep({
   role,
@@ -175,8 +291,6 @@ function InfoStep({
   const isGuardian = role === "guardian";
   const [form, setForm] = useState({ name: "", age: "", loginId: "", password: "", passwordConfirm: "", studentCode: "" });
   const [checkedLoginId, setCheckedLoginId] = useState<string | null>(null);
-  const [agreeTerms, setAgreeTerms] = useState(false);
-  const [agreeMarketing, setAgreeMarketing] = useState(false);
   const [errors, setErrors] = useState<InfoErrors>({});
 
   const update = (key: keyof typeof form) => (event: { target: { value: string } }) =>
@@ -208,11 +322,10 @@ function InfoStep({
     if (form.password.length < 8) next.password = "비밀번호는 8자 이상이어야 해요";
     if (form.passwordConfirm !== form.password || !form.passwordConfirm) next.passwordConfirm = "비밀번호가 일치하지 않아요";
     if (isGuardian && !form.studentCode.trim()) next.studentCode = "학생 연결 코드를 입력해 주세요";
-    if (isGuardian && !agreeTerms) next.terms = "필수 약관에 동의해 주세요";
 
     setErrors(next);
     if (Object.keys(next).length > 0) return;
-    // TODO: 회원가입 API 연동 (role, form, agreeMarketing)
+    // TODO: 회원가입 API 연동 (role, form, 동의 단계에서 체크한 항목과 동의 시각)
     onComplete(
       registerMember({
         loginId: form.loginId.trim(),
@@ -235,12 +348,12 @@ function InfoStep({
         back={
           <button type="button" onClick={onBack} className={`cursor-pointer ${backClassName}`}>
             <ChevronLeftIcon className="size-[14px] text-[#8B6650]" />
-            가입 유형 다시 선택
+            동의 화면으로 돌아가기
           </button>
         }
         title={title}
         subtitle={subtitle}
-        current={1}
+        current={2}
       />
 
       <form onSubmit={handleSubmit} noValidate className="mt-[26px] flex flex-col">
@@ -315,30 +428,15 @@ function InfoStep({
         />
 
         {isGuardian && (
-          <>
-            <TextField
-              className="mt-[24px]"
-              label="학생 연결 코드"
-              name="studentCode"
-              placeholder="학생 코드를 입력해 주세요"
-              value={form.studentCode}
-              onChange={update("studentCode")}
-              message={error("studentCode")}
-            />
-            <div className="mt-[30px] flex flex-col gap-[10px]">
-              <CheckboxField checked={agreeTerms} onChange={setAgreeTerms}>
-                이용약관 및 개인정보 처리방침에 동의해요 (필수)
-              </CheckboxField>
-              <CheckboxField checked={agreeMarketing} onChange={setAgreeMarketing}>
-                마케팅 정보 수신에 동의해요 (선택)
-              </CheckboxField>
-              {errors.terms && (
-                <p role="alert" className="text-[12px] text-[#D0582A]">
-                  {errors.terms}
-                </p>
-              )}
-            </div>
-          </>
+          <TextField
+            className="mt-[24px]"
+            label="학생 연결 코드"
+            name="studentCode"
+            placeholder="학생 코드를 입력해 주세요"
+            value={form.studentCode}
+            onChange={update("studentCode")}
+            message={error("studentCode")}
+          />
         )}
 
         <button type="submit" className={`mt-[26px] ${primaryButtonClassName}`}>
@@ -352,7 +450,7 @@ function InfoStep({
 function DoneStep({ member }: { member: Member }) {
   return (
     <>
-      <StepHeader title="가입 완료" subtitle="여울이가 기다리고 있어요" current={2} />
+      <StepHeader title="가입 완료" subtitle="여울이가 기다리고 있어요" current={3} />
       <div className="mt-[26px] flex flex-col items-center gap-[10px] text-center">
         <Image src="/auth/yeoul-cat.png" alt="" width={96} height={96} />
         <p className="text-[17px] font-bold text-[#5A4032]">{member.name}님, 여울에 오신 걸 환영해요!</p>

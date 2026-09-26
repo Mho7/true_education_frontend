@@ -41,11 +41,13 @@ type CheckboxFieldProps = {
   checked: boolean;
   onChange: (checked: boolean) => void;
   children: ReactNode;
+  className?: string;
 };
 
-export function CheckboxField({ checked, onChange, children }: CheckboxFieldProps) {
+/** 체크박스는 라벨 첫 줄에 맞춘다 (라벨이 여러 줄이어도 된다) */
+export function CheckboxField({ checked, onChange, children, className = "" }: CheckboxFieldProps) {
   return (
-    <label className="flex cursor-pointer items-center gap-[10px] text-[14px] text-[#6B5446]">
+    <label className={`flex cursor-pointer items-start gap-[10px] text-[14px] leading-[20px] text-[#6B5446] ${className}`}>
       <input
         type="checkbox"
         checked={checked}
