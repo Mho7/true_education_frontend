@@ -133,8 +133,19 @@ export type DashboardResponse = {
   /** 완료한 책이 3권 미만이면 true */
   collecting: boolean;
   collectingMessage?: string;
-  /** 최근 완료 순 */
-  reflections: { assignmentId: number; title: string; transcript: string; durationMs: number; completedAt: string }[];
+  /** 최근 완료 순. transcript는 아이가 그린 표지를 말로 설명한 글(책 내용 설명이 아니다) */
+  reflections: {
+    assignmentId: number;
+    title: string;
+    transcript: string;
+    durationMs: number;
+    completedAt: string;
+    /**
+     * 아이가 그린 표지 그림 주소.
+     * TODO(백엔드 요청): 아직 응답에 없다. 추가되면 보호자 화면이 그대로 그림을 보여 준다(없으면 색 칸).
+     */
+    coverImageUrl?: string | null;
+  }[];
 };
 
 /** GET·PUT /parents/me/students/{studentId}/rewards[/{milestone}] */

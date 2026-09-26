@@ -16,7 +16,7 @@ export type LearningRecord = {
   /** 읽는 중일 때 지금 하고 있는 활동 */
   stageLabel?: string;
   /**
-   * 책을 다 읽고 아이가 말로 설명한 글.
+   * 아이가 그린 표지를 말로 설명한 글(음성 인식으로 받아 적은 것).
    * TODO: 책별 문제 해결 결과(혼자·힌트 후·정답 공개)를 주는 보호자 API가 생기면 함께 보여 준다.
    */
   reflection?: string;
@@ -25,7 +25,7 @@ export type LearningRecord = {
 export type GuardianHomeData = {
   childName: string;
   summary: {
-    /** 고른 주에 학습한 날 수 (읽기 기록이 있거나 책을 다 읽은 날) */
+    /** 고른 주에 학습한 날 수 (읽기 기록이 있거나 책을 다 읽은 날. 읽기 속도 값은 쓰지 않고 날짜만 쓴다) */
     sessions: number;
     /** 다 읽은 책(누적) */
     books: number;
@@ -110,6 +110,7 @@ export function toGuardianHomeData({
       date: localDate(reflection.completedAt),
       title: reflection.title,
       coverColor: coverColorFor(reflection.assignmentId),
+      coverUrl: reflection.coverImageUrl ?? undefined,
       status: "COMPLETED",
       reflection: reflection.transcript,
     })),

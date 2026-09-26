@@ -199,12 +199,12 @@ function RecordRow({ record, fill }: { record: LearningRecord; fill: boolean }) 
       <div className="min-w-0 shrink-0 border-[#EEF0F3] @[640px]:w-[300px] @[640px]:border-l @[640px]:pl-[28px]">
         {record.reflection ? (
           <figure>
-            <figcaption className="text-[13px] font-semibold text-[#8A909C]">아이가 들려준 이야기</figcaption>
+            <figcaption className="text-[13px] font-semibold text-[#8A909C]">표지 그림 설명</figcaption>
             <blockquote className="mt-[4px] line-clamp-2 text-[15px] leading-[23px] break-keep text-[#2A2F37]">“{record.reflection}”</blockquote>
           </figure>
         ) : (
           <p className="text-[14px] leading-[22px] break-keep text-[#8A909C]">
-            {inProgress ? "책을 다 읽으면 아이가 들려준 이야기가 여기에 보여요." : "아직 기록이 없어요."}
+            {inProgress ? "책을 다 읽고 표지를 그리면, 그림을 설명한 말이 여기에 보여요." : "아직 기록이 없어요."}
           </p>
         )}
       </div>
@@ -229,11 +229,15 @@ export function StatusChip({ record }: { record: Pick<LearningRecord, "status" |
 export function Cover({ record, size = "md" }: { record: Pick<LearningRecord, "coverColor" | "coverUrl">; size?: "md" | "sm" }) {
   return (
     <span
-      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-[12px] ${size === "sm" ? "size-[56px]" : "size-[64px] @[640px]:size-[84px]"}`}
-      style={{ background: `linear-gradient(150deg, ${record.coverColor}, color-mix(in srgb, ${record.coverColor} 72%, #1F2937))` }}
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-[12px] ${size === "sm" ? "size-[56px]" : "size-[64px] @[640px]:size-[84px]"} ${
+        record.coverUrl ? "border border-[#E6E8EC]" : ""
+      }`}
+      style={{
+        background: record.coverUrl ? "#FFFFFF" : `linear-gradient(150deg, ${record.coverColor}, color-mix(in srgb, ${record.coverColor} 72%, #1F2937))`,
+      }}
     >
       {record.coverUrl ? (
-        <Image src={record.coverUrl} alt="" fill sizes="84px" className="object-cover" unoptimized />
+        <Image src={record.coverUrl} alt="아이가 그린 표지" fill sizes="84px" className="object-contain" unoptimized />
       ) : (
         <OpenBookIcon className={`${size === "sm" ? "size-[26px]" : "size-[32px]"} text-white/90`} />
       )}
