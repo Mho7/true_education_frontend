@@ -2,17 +2,27 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { ensureRoundTheme, useRoundTheme } from "@/lib/bookDraft";
 
-// 시안 그림(public/study/intro/book-intro.webp, abc 시안에서 문구·책 제목·버튼을 지운 것) 크기.
+// 시안 그림(public/study/intro/book-intro.webp, abc 시안에서 문구·책·버튼을 지운 것) 크기.
 // 선명하게 보이도록 1.5배로 키워 저장했지만 좌표는 시안(1672×941) 기준이다. 문구·제목·버튼은 이 좌표에 붙인다.
 const INTRO_WIDTH = 1672;
 const INTRO_HEIGHT = 941;
 /** "오늘 읽을 책은?" 문구 가운데 (양옆 노란 반짝이는 그림에 남아 있다) */
 const HEADING = { x: 839, y: 189 };
-/** 표지 종이 가운데의 책 제목 자리 */
-const TITLE = { x: 956, y: 430, maxWidth: 250 };
-/** 책(책등 포함)의 가로 자리. 버튼을 책과 같은 폭·같은 가운데로 맞춘다. */
-const BOOK = { x: 764, width: 353 };
+/** 책(책등 포함)이 보이는 가로 자리와 바닥. 버튼을 책과 같은 폭·같은 가운데로 맞춘다. */
+const BOOK = { x: 764, width: 353, bottom: 663 };
+// 책장 표지 그림(public/library/book-<theme>.png, 537×613)은 둘레 5px이 투명 여백이다.
+// 보이는 부분(527×602)이 시안 책 자리에 꼭 맞도록 그림 전체 크기와 위치를 정한다.
+const COVER_SCALE = BOOK.width / 527;
+const COVER = {
+  x: BOOK.x - 5 * COVER_SCALE,
+  y: BOOK.bottom - 607 * COVER_SCALE,
+  width: 537 * COVER_SCALE,
+  height: 613 * COVER_SCALE,
+};
+/** 표지 안쪽 칸 가운데의 책 제목 자리 (표지 그림 기준 %) */
+const TITLE = { left: "52.7%", top: "46%", maxWidth: 250 };
 /** 학습하러 가기 버튼 자리. 가로는 책에 맞추고 세로는 시안 그대로 둔다. */
 const BUTTON = { x: BOOK.x, y: 698, width: BOOK.width, height: 96 };
 
@@ -51,6 +61,9 @@ const artY = (y: number) => `${(y / INTRO_HEIGHT) * 100}%`;
 export default function BookIntro({ title, onDone }: { title: string; onDone: () => void }) {
   const [phase, setPhase] = useState<Phase>("intro");
   const [frame, setFrame] = useState(0);
+  // 이번에 받을 책 표지 색을 여기서 정해 두고, 4단계에서 책을 만들 때 같은 색을 쓴다.
+  const theme = useRoundTheme();
+  useEffect(ensureRoundTheme, []);
 
   useEffect(() => {
     if (phase !== "loading") return;
@@ -97,17 +110,27 @@ export default function BookIntro({ title, onDone }: { title: string; onDone: ()
             >
               오늘 읽을 <span className="text-[#E07A2E]">책</span>은?
             </h2>
-            <p
-              className="absolute -translate-1/2 text-center font-display leading-tight break-keep text-[#4A3426]"
-              style={{
-                left: artX(TITLE.x),
-                top: artY(TITLE.y),
-                width: artPx(TITLE.maxWidth),
-                fontSize: artPx(34),
-              }}
-            >
-              {title}
-            </p>
+            {/* 이번에 받을 색의 책. 색을 정하기 전(첫 화면)에는 비워 두었다가 살짝 나타난다. */}
+            {theme && (
+              <div
+                className="absolute animate-fade-in"
+                style={{
+                  left: artX(COVER.x),
+                  top: artY(COVER.y),
+                  width: artPx(COVER.width),
+                  height: artPx(COVER.height),
+                  filter: `drop-shadow(${artPx(8)} ${artPx(6)} ${artPx(8)} rgba(90,60,30,0.25))`,
+                }}
+              >
+                <Image src={`/library/book-${theme}.png`} alt="" fill sizes="40vw" preload className="select-none" draggable={false} />
+                <p
+                  className="absolute -translate-1/2 text-center font-display leading-tight break-keep text-[#4A3426]"
+                  style={{ left: TITLE.left, top: TITLE.top, width: artPx(TITLE.maxWidth), fontSize: artPx(34) }}
+                >
+                  {title}
+                </p>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setPhase("loading")}

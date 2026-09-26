@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { clearRoundTheme } from "./bookDraft";
 import { LESSON_COUNT } from "./studyLessons";
 
 // 학습 지도와 각 단계 페이지를 오가도 어디까지 했는지 기억한다.
@@ -60,6 +61,7 @@ export function resetStudyProgress() {
   } catch {
     // 저장소를 못 쓰면 지울 것도 없다.
   }
+  clearRoundTheme();
   writeCleared(0);
 }
 
