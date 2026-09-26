@@ -23,17 +23,20 @@ export default function GuardianSideNav() {
   return (
     <nav
       aria-label="보호자 메뉴"
-      className="relative flex shrink-0 flex-col border-[#EFEAE3] bg-[#FAF8F5] max-lg:border-b lg:min-h-screen lg:w-[240px] lg:border-r"
+      className="relative flex shrink-0 flex-col border-[#E6E8EC] bg-white max-lg:border-b lg:h-screen lg:w-[240px] lg:border-r"
     >
-      <p className="flex items-center gap-[14px] px-[36px] pt-[40px] pb-[36px] text-[18px] leading-[26px] text-[#4A4038] max-lg:px-[20px] max-lg:py-[16px]">
-        <OpenBookIcon className="size-[36px] shrink-0 text-[#6B5A4C]" />
-        <span className="break-keep">
+      <p className="flex items-center gap-[12px] px-[28px] pt-[36px] pb-[32px] max-lg:px-[16px] max-lg:py-[14px]">
+        <span className="flex size-[40px] shrink-0 items-center justify-center rounded-[12px] bg-[#E8672A] text-white">
+          <OpenBookIcon className="size-[22px]" />
+        </span>
+        <span className="text-[15px] leading-[20px] font-bold tracking-[-0.01em] break-keep text-[#111418]">
           우리 아이
           <br className="max-lg:hidden" /> 독서 기록
         </span>
       </p>
 
-      <ul className="flex gap-[6px] px-[20px] max-lg:overflow-x-auto max-lg:pb-[12px] lg:flex-col lg:gap-[8px]">
+      <p className="px-[30px] pb-[8px] text-[12px] font-semibold tracking-[0.04em] text-[#A3A8B2] max-lg:hidden">메뉴</p>
+      <ul className="flex gap-[4px] px-[16px] max-lg:overflow-x-auto max-lg:pb-[12px] lg:flex-col">
         {ITEMS.map(({ key, label, Icon, ready }) => {
           const active = key === "home";
           return (
@@ -43,11 +46,11 @@ export default function GuardianSideNav() {
                 aria-current={active ? "page" : undefined}
                 aria-disabled={!ready}
                 title={ready ? undefined : "준비 중이에요"}
-                className={`flex h-[56px] w-full items-center gap-[18px] rounded-[14px] px-[20px] text-[19px] whitespace-nowrap transition max-lg:h-[44px] max-lg:gap-[10px] max-lg:px-[14px] max-lg:text-[16px] ${
-                  active ? "bg-[#F1EBE3] font-bold text-[#3A302A]" : "text-[#4A4038]"
+                className={`flex h-[46px] w-full items-center gap-[12px] rounded-[12px] px-[14px] text-[16px] whitespace-nowrap transition max-lg:h-[40px] max-lg:text-[15px] ${
+                  active ? "bg-[#F3F4F6] font-semibold text-[#111418]" : "text-[#4B5260] hover:bg-[#F7F8FA]"
                 } ${ready ? "cursor-pointer" : "cursor-default"}`}
               >
-                <Icon className={`size-[26px] shrink-0 max-lg:size-[20px] ${active ? "text-[#4A3C31]" : "text-[#6B5A4C]"}`} />
+                <Icon className={`size-[20px] shrink-0 ${active ? "text-[#E8672A]" : "text-[#8A909C]"}`} />
                 {label}
               </button>
             </li>
@@ -58,7 +61,7 @@ export default function GuardianSideNav() {
       <button
         type="button"
         onClick={handleLogout}
-        className="mt-auto mb-[28px] ml-[40px] w-fit cursor-pointer text-[14px] text-[#9A8F85] underline-offset-4 hover:text-[#5C5149] hover:underline max-lg:absolute max-lg:top-[20px] max-lg:right-[20px] max-lg:m-0"
+        className="mx-[16px] mt-auto mb-[24px] flex h-[40px] cursor-pointer items-center rounded-[12px] px-[14px] text-[14px] text-[#8A909C] transition hover:bg-[#F7F8FA] hover:text-[#4B5260] max-lg:absolute max-lg:top-[14px] max-lg:right-0 max-lg:m-0 max-lg:mr-[8px]"
       >
         로그아웃
       </button>
