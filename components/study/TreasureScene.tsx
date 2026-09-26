@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { DEFAULT_DRAFT_TITLE, readBookDraft, startBookDraft } from "@/lib/bookDraft";
+import { markDailyStudyCompleted } from "@/lib/dailyStudy";
 import { addStamps, rollTreasureStamps } from "@/lib/stamps";
 import { markTreasureFound, readTreasureState, resetStudyProgress, type TreasureState } from "@/lib/studyProgress";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./studyMap";
@@ -99,6 +100,8 @@ export default function TreasureScene({ scale, viewWidth, resume, onOpen }: Trea
     const count = rollTreasureStamps();
     // 애니메이션 도중에 나가도 받은 스탬프는 남도록 누르는 순간 저장한다.
     addStamps(count);
+    // 스탬프를 받은 이 순간을 오늘 학습을 끝낸 때로 기록한다. 같은 날에는 다시 학습하러 들어올 수 없다.
+    markDailyStudyCompleted();
     // 한 바퀴를 끝냈으니 다음에 학습 지도에 오면 1단계부터 다시 시작한다.
     resetStudyProgress();
     setReward({
