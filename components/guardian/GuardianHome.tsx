@@ -3,34 +3,11 @@
 import Image from "next/image";
 import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import DesignStage from "@/components/DesignStage";
-import { getDashboard, getLinkedStudents, getRewardBoard } from "@/lib/api/parents";
-import type { LinkedStudent } from "@/lib/api/types";
-import {
-  OUTCOME_LABELS,
-  SKILL_LABELS,
-  toGuardianHomeData,
-  weekStartOf,
-  type GuardianHomeData,
-  type LearningRecord,
-  type SkillKind,
-  type SolveOutcome,
-} from "@/lib/guardianHome";
-import { RecordsView, RewardsView } from "./GuardianPanels";
-import GuardianSideNav, { type GuardianView } from "./GuardianSideNav";
-import {
-  BookStackIcon,
-  ChatBubbleIcon,
-  CheckIcon,
-  ChevronIcon,
-  ClockIcon,
-  GiftIcon,
-  HeartIcon,
-  OpenBookIcon,
-  RecordIcon,
-  RingIcon,
-  SproutIcon,
-} from "./guardianIcons";
-import { ActionButton, ActionLink, cardClassName, SectionHeader, StatusCard } from "./guardianUi";
+import { getDashboard, getRewardBoard } from "@/lib/api/parents";
+import { toGuardianHomeData, weekStartOf, type GuardianHomeData, type LearningRecord } from "@/lib/guardianHome";
+import { ChildPicker, useGuardian } from "./GuardianShell";
+import { BookStackIcon, ChatBubbleIcon, CheckIcon, ChevronIcon, GiftIcon, OpenBookIcon, SproutIcon } from "./guardianIcons";
+import { ActionButton, cardClassName, SectionHeader, StatusCard } from "./guardianUi";
 import { useLoad } from "./useLoad";
 
 /**
@@ -46,81 +23,23 @@ const readToday = () => {
   return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
 };
 
-/** 보호자 대시보드(시안 abcc.png). 왼쪽 메뉴로 홈 · 학습 기록 · 리워드 설정을 오간다. */
+/** 보호자 홈(시안 abcc.png). 보호자 대시보드·보상판 API로 그린다. 주를 넘기면 그 주의 학습 횟수가 바뀐다. */
 export default function GuardianHome() {
   const today = useSyncExternalStore(noSubscribe, readToday, () => null);
-  const [view, setView] = useState<GuardianView>("home");
-  const [students, reloadStudents] = useLoad(getLinkedStudents, "students");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-
-  const list = students.status === "loaded" ? students.data : [];
-  const child = list.find((s) => s.studentId === selectedId) ?? list[0];
-
-  let content: ReactNode;
-  if (students.status === "loading" || !today) content = <StatusCard>연결된 아이를 불러오는 중…</StatusCard>;
-  else if (students.status === "error") {
-    content = students.needsLogin ? (
-      <StatusCard action={<ActionLink href="/">보호자로 로그인하기</ActionLink>}>보호자 계정으로 로그인해야 볼 수 있어요.</StatusCard>
-    ) : (
-      <StatusCard action={<ActionButton onClick={reloadStudents}>다시 불러오기</ActionButton>}>{students.message}</StatusCard>
-    );
-  } else if (!child) content = <StatusCard>연결된 아이가 없어요. 아이가 가입하고 받은 학생 코드로 연결할 수 있어요.</StatusCard>;
-  else if (view === "home") content = <HomeView key={child.studentId} child={child} today={today} onNavigate={setView} />;
-  else if (view === "records") content = <RecordsView key={child.studentId} child={child} />;
-  else content = <RewardsView key={child.studentId} child={child} />;
-
-  const childPicker =
-    list.length > 1 ? <ChildPicker students={list} selectedId={child?.studentId} onSelect={setSelectedId} /> : null;
-
   return (
-    <div className="flex min-h-screen w-full bg-[#F5F6F8] font-kr text-[#111418] max-lg:flex-col lg:h-screen lg:overflow-hidden">
-      <GuardianSideNav active={view} onSelect={setView} />
-      <main className="relative min-w-0 flex-1 lg:overflow-y-auto">
-        {view === "home" ? (
-          <DesignStage designWidth={CANVAS.width} designHeight={CANVAS.height} fit="contain" fallbackClassName="px-[16px] pt-[20px] pb-[32px]">
-            <div className="@container size-full">
-              <div className="flex h-full flex-col @[1100px]:px-[48px] @[1100px]:pt-[44px] @[1100px]:pb-[40px]">
-                {childPicker}
-                {content}
-              </div>
-            </div>
-          </DesignStage>
-        ) : (
-          <div className="@container mx-auto w-full max-w-[1100px] px-[16px] pt-[20px] pb-[40px] lg:px-[48px] lg:pt-[44px]">
-            {childPicker}
-            {content}
-          </div>
-        )}
-      </main>
-    </div>
+    <DesignStage designWidth={CANVAS.width} designHeight={CANVAS.height} fit="contain" fallbackClassName="px-[16px] pt-[20px] pb-[32px]">
+      <div className="@container size-full">
+        <div className="flex h-full flex-col @[1100px]:px-[48px] @[1100px]:pt-[44px] @[1100px]:pb-[40px]">
+          <ChildPicker />
+          {today && <HomeContent today={today} />}
+        </div>
+      </div>
+    </DesignStage>
   );
 }
 
-function ChildPicker({ students, selectedId, onSelect }: { students: LinkedStudent[]; selectedId?: number; onSelect: (id: number) => void }) {
-  return (
-    <div role="tablist" aria-label="아이 선택" className="mb-[16px] flex shrink-0 flex-wrap gap-[8px]">
-      {students.map((student) => {
-        const selected = student.studentId === selectedId;
-        return (
-          <button
-            key={student.studentId}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            onClick={() => onSelect(student.studentId)}
-            className={`h-[36px] cursor-pointer rounded-full px-[16px] text-[14px] font-semibold transition ${
-              selected ? "bg-[#111418] text-white" : "border border-[#E6E8EC] bg-white text-[#4B5260] hover:bg-[#F7F8FA]"
-            }`}
-          >
-            {student.name}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function HomeView({ child, today, onNavigate }: { child: LinkedStudent; today: string; onNavigate: (view: GuardianView) => void }) {
+function HomeContent({ today }: { today: string }) {
+  const { child } = useGuardian();
   /** 0이면 이번 주, -1이면 지난주 */
   const [weekOffset, setWeekOffset] = useState(0);
   const [load, reload] = useLoad(
@@ -167,9 +86,9 @@ function HomeView({ child, today, onNavigate }: { child: LinkedStudent; today: s
       <SummaryCard summary={data.summary} />
 
       <div className="mt-[20px] grid min-h-0 flex-1 grid-cols-1 gap-[20px] @[1100px]:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <RecentRecords records={data.records} onMore={() => onNavigate("records")} />
+        <RecentRecords records={data.records} />
         <div className="@container flex min-h-0 flex-col gap-[20px]">
-          <RewardCard reward={data.reward} onMore={() => onNavigate("rewards")} />
+          <RewardCard reward={data.reward} />
           <RecentStory story={data.story} />
         </div>
       </div>
@@ -231,10 +150,10 @@ function SummaryCard({ summary }: { summary: GuardianHomeData["summary"] }) {
   );
 }
 
-function RecentRecords({ records, onMore }: { records: LearningRecord[]; onMore: () => void }) {
+function RecentRecords({ records }: { records: LearningRecord[] }) {
   return (
     <section className={`${cardClassName} @container flex min-h-0 flex-col p-[24px] max-sm:p-[16px]`}>
-      <SectionHeader title="최근 학습 기록" action="전체 기록 보기" onAction={onMore} />
+      <SectionHeader title="최근 학습 기록" action="전체 기록 보기" href="/guardian/records" />
       {records.length === 0 ? (
         <p className="mt-[16px] rounded-[14px] bg-[#F7F8FA] px-[20px] py-[28px] text-center text-[15px] text-[#8A909C]">아직 학습 기록이 없어요.</p>
       ) : (
@@ -248,19 +167,6 @@ function RecentRecords({ records, onMore }: { records: LearningRecord[]; onMore:
     </section>
   );
 }
-
-const SKILL_ICONS: Record<SkillKind, { Icon: IconComponent; color: string }> = {
-  CAUSE: { Icon: RingIcon, color: "text-[#F59E0B]" },
-  EMOTION: { Icon: HeartIcon, color: "text-[#E5484D]" },
-  CHARACTER_EVENT: { Icon: ClockIcon, color: "text-[#3E7BFA]" },
-  SUMMARY_TITLE: { Icon: RecordIcon, color: "text-[#6B7280]" },
-};
-
-const OUTCOME_STYLES: Record<SolveOutcome, string> = {
-  SELF: "bg-[#E9F6EF] text-[#1B7A45]",
-  HINT: "bg-[#EAF1FE] text-[#2F5FD0]",
-  REREAD: "bg-[#FFF3E6] text-[#B4560F]",
-};
 
 function formatMonthDay(date: string) {
   const [, month, day] = date.split("-").map(Number);
@@ -287,36 +193,11 @@ function RecordRow({ record, fill }: { record: LearningRecord; fill: boolean }) 
             <span className="text-[14px] font-medium text-[#8A909C]">지금 읽는 책</span>
           )}
           <p className="mt-[2px] max-w-full truncate text-[21px] leading-[30px] font-bold tracking-[-0.01em]">{record.title}</p>
-          {inProgress ? (
-            <span className="mt-[6px] flex items-center gap-[6px] rounded-full bg-[#FFF1E8] px-[10px] py-[3px] text-[13px] font-medium text-[#B4560F]">
-              <span aria-hidden className="size-[6px] rounded-full bg-[#E8672A]" />
-              {record.stageLabel} 하는 중
-            </span>
-          ) : (
-            <span className="mt-[6px] flex items-center gap-[4px] rounded-full bg-[#F3F4F6] py-[3px] pr-[10px] pl-[7px] text-[13px] font-medium text-[#4B5260]">
-              <CheckIcon className="size-[14px] text-[#1E8A4F]" />
-              독서 활동 완료
-            </span>
-          )}
+          <StatusChip record={record} />
         </div>
       </div>
       <div className="min-w-0 shrink-0 border-[#EEF0F3] @[640px]:w-[300px] @[640px]:border-l @[640px]:pl-[28px]">
-        {record.results.length > 0 ? (
-          <ul className="flex flex-col gap-[8px]" aria-label="활동 결과">
-            {record.results.map(({ skill, outcome }) => {
-              const { Icon, color } = SKILL_ICONS[skill];
-              return (
-                <li key={skill} className="flex items-center gap-[10px]">
-                  <Icon className={`size-[20px] shrink-0 ${color}`} />
-                  <span className="w-[88px] text-[15px] text-[#2A2F37]">{SKILL_LABELS[skill]}</span>
-                  <span className={`rounded-full px-[11px] py-[4px] text-[13px] font-semibold whitespace-nowrap ${OUTCOME_STYLES[outcome]}`}>
-                    {OUTCOME_LABELS[outcome]}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        ) : record.reflection ? (
+        {record.reflection ? (
           <figure>
             <figcaption className="text-[13px] font-semibold text-[#8A909C]">아이가 들려준 이야기</figcaption>
             <blockquote className="mt-[4px] line-clamp-2 text-[15px] leading-[23px] break-keep text-[#2A2F37]">“{record.reflection}”</blockquote>
@@ -331,26 +212,40 @@ function RecordRow({ record, fill }: { record: LearningRecord; fill: boolean }) 
   );
 }
 
-function Cover({ record }: { record: LearningRecord }) {
+export function StatusChip({ record }: { record: Pick<LearningRecord, "status" | "stageLabel"> }) {
+  return record.status === "IN_PROGRESS" ? (
+    <span className="mt-[6px] flex items-center gap-[6px] rounded-full bg-[#FFF1E8] px-[10px] py-[3px] text-[13px] font-medium text-[#B4560F]">
+      <span aria-hidden className="size-[6px] rounded-full bg-[#E8672A]" />
+      {record.stageLabel} 하는 중
+    </span>
+  ) : (
+    <span className="mt-[6px] flex items-center gap-[4px] rounded-full bg-[#F3F4F6] py-[3px] pr-[10px] pl-[7px] text-[13px] font-medium text-[#4B5260]">
+      <CheckIcon className="size-[14px] text-[#1E8A4F]" />
+      독서 활동 완료
+    </span>
+  );
+}
+
+export function Cover({ record, size = "md" }: { record: Pick<LearningRecord, "coverColor" | "coverUrl">; size?: "md" | "sm" }) {
   return (
     <span
-      className="relative flex size-[64px] shrink-0 items-center justify-center overflow-hidden rounded-[12px] @[640px]:size-[84px]"
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-[12px] ${size === "sm" ? "size-[56px]" : "size-[64px] @[640px]:size-[84px]"}`}
       style={{ background: `linear-gradient(150deg, ${record.coverColor}, color-mix(in srgb, ${record.coverColor} 72%, #1F2937))` }}
     >
       {record.coverUrl ? (
         <Image src={record.coverUrl} alt="" fill sizes="84px" className="object-cover" unoptimized />
       ) : (
-        <OpenBookIcon className="size-[32px] text-white/90" />
+        <OpenBookIcon className={`${size === "sm" ? "size-[26px]" : "size-[32px]"} text-white/90`} />
       )}
     </span>
   );
 }
 
-function RewardCard({ reward, onMore }: { reward: GuardianHomeData["reward"]; onMore: () => void }) {
+function RewardCard({ reward }: { reward: GuardianHomeData["reward"] }) {
   const left = Math.max(reward.goal - reward.current, 0);
   return (
     <section className={`${cardClassName} shrink-0 p-[24px] max-sm:p-[16px]`}>
-      <SectionHeader title="독서 리워드" action="리워드 설정하기" onAction={onMore} />
+      <SectionHeader title="독서 리워드" action="리워드 설정하기" href="/guardian/rewards" />
       <div className="mt-[16px] flex items-center justify-between gap-[16px] rounded-[16px] bg-[#F7F8FA] px-[24px] py-[20px] max-sm:px-[16px]">
         <div className="min-w-0">
           <p className="text-[15px] font-medium text-[#6B7280]">다음 리워드까지</p>
@@ -384,7 +279,7 @@ function RewardCard({ reward, onMore }: { reward: GuardianHomeData["reward"]; on
 function RecentStory({ story }: { story: GuardianHomeData["story"] }) {
   return (
     <section className={`${cardClassName} flex min-h-0 flex-1 flex-col p-[24px] max-sm:p-[16px]`}>
-      <SectionHeader title="최근 이야기" />
+      <SectionHeader title="최근 이야기" action="자세히 보기" href="/guardian/records" />
       {story.kind === "collecting" ? (
         <div className="mt-[16px] flex items-start gap-[12px] rounded-[16px] bg-[#F7F8FA] px-[20px] py-[18px]">
           <span className="flex size-[32px] shrink-0 items-center justify-center rounded-[10px] bg-white text-[#E8672A]">
@@ -405,7 +300,7 @@ function RecentStory({ story }: { story: GuardianHomeData["story"] }) {
   );
 }
 
-function StoryCard({ tone, title, text }: { tone: "good" | "help"; title: string; text: string }) {
+export function StoryCard({ tone, title, text }: { tone: "good" | "help"; title: string; text: string }) {
   const good = tone === "good";
   return (
     <div className={`rounded-[16px] px-[20px] py-[18px] ${good ? "bg-[#F0F8F3]" : "bg-[#FFF4EE]"}`}>

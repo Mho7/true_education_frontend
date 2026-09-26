@@ -3,12 +3,6 @@
 
 import type { DashboardResponse, LearningStage, RewardBoardResponse } from "@/lib/api/types";
 
-/** 문제를 어떻게 해결했는지 */
-export type SolveOutcome = "SELF" | "HINT" | "REREAD";
-
-/** 활동 종류(아이콘·이름) */
-export type SkillKind = "CAUSE" | "EMOTION" | "CHARACTER_EVENT" | "SUMMARY_TITLE";
-
 export type LearningRecord = {
   id: string;
   /** YYYY-MM-DD (읽는 중인 책은 없다) */
@@ -22,11 +16,9 @@ export type LearningRecord = {
   /** 읽는 중일 때 지금 하고 있는 활동 */
   stageLabel?: string;
   /**
-   * 활동별 해결 결과.
-   * TODO: 책별 결과를 주는 API가 생기면 채운다(지금 대시보드 응답은 유형별 누적 비율만 준다).
+   * 책을 다 읽고 아이가 말로 설명한 글.
+   * TODO: 책별 문제 해결 결과(혼자·힌트 후·정답 공개)를 주는 보호자 API가 생기면 함께 보여 준다.
    */
-  results: { skill: SkillKind; outcome: SolveOutcome }[];
-  /** 책을 다 읽고 아이가 말로 설명한 글 */
   reflection?: string;
 };
 
@@ -48,19 +40,6 @@ export type GuardianHomeData = {
     | { kind: "comments"; good: string | null; help: string | null };
 };
 
-export const SKILL_LABELS: Record<SkillKind, string> = {
-  CAUSE: "원인 이해",
-  EMOTION: "마음 이해",
-  CHARACTER_EVENT: "인물과 사건",
-  SUMMARY_TITLE: "요약과 제목",
-};
-
-export const OUTCOME_LABELS: Record<SolveOutcome, string> = {
-  SELF: "혼자 해결",
-  HINT: "힌트 후 해결",
-  REREAD: "다시 읽고 해결",
-};
-
 export const LEARNING_STAGE_LABELS: Record<LearningStage, string> = {
   READING: "번갈아 읽기",
   QUESTION: "이해 질문",
@@ -73,7 +52,7 @@ export const LEARNING_STAGE_LABELS: Record<LearningStage, string> = {
 
 /** 표지 그림이 없을 때 책마다 늘 같은 색 칸 */
 const COVER_COLORS = ["#9CC7EC", "#D9C29A", "#6FA8DC", "#B7D59A", "#E8A9A0", "#B9A7E0"];
-const coverColorFor = (assignmentId: number) => COVER_COLORS[assignmentId % COVER_COLORS.length];
+export const coverColorFor = (assignmentId: number) => COVER_COLORS[assignmentId % COVER_COLORS.length];
 
 /** 주 시작일(월요일) */
 export function weekStartOf(date: Date) {
@@ -86,7 +65,7 @@ const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 /** 서버 날짜(ISO)를 이 기기 날짜 YYYY-MM-DD로 */
-const localDate = (iso: string) => {
+export const localDate = (iso: string) => {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso.slice(0, 10) : dateKey(date);
 };
@@ -123,7 +102,6 @@ export function toGuardianHomeData({
             coverColor: coverColorFor(inProgress.assignmentId),
             status: "IN_PROGRESS" as const,
             stageLabel: LEARNING_STAGE_LABELS[inProgress.stage] ?? inProgress.stage,
-            results: [],
           },
         ]
       : []),
@@ -133,7 +111,6 @@ export function toGuardianHomeData({
       title: reflection.title,
       coverColor: coverColorFor(reflection.assignmentId),
       status: "COMPLETED",
-      results: [],
       reflection: reflection.transcript,
     })),
   ].slice(0, 3);
