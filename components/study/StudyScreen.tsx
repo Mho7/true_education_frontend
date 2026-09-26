@@ -6,7 +6,9 @@ import { useCallback, useEffect, useState } from "react";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { useElementSize } from "@/components/stage/Anchor";
 import { lessonHref } from "@/lib/studyLessons";
-import { useClearedLessons, useTreasureState } from "@/lib/studyProgress";
+import { markBookIntroSeen, useBookIntroSeen, useClearedLessons, useTreasureState } from "@/lib/studyProgress";
+import BookIntro from "./BookIntro";
+import StudyDevPanel from "./StudyDevPanel";
 import { Fox, NextArrow, SpeechBubble } from "./StudyParts";
 import TreasureScene from "./TreasureScene";
 import {
@@ -19,6 +21,7 @@ import {
   STATIONS,
   VIEW_HEIGHT,
   VIEW_WIDTH,
+  FOX_ASPECT,
   foxHeight,
   type FoxPose,
   type Point,
@@ -35,6 +38,7 @@ import {
  * 2~4단계는 그 발판까지 달려가 한마디 한 뒤 넘어간다. 학습을 끝내고 돌아오면 끝낸 단계 수(저장됨)에 맞춰
  * 그 발판에서 기뻐하고 있다. 4단계를 끝내면 지도 끝 보물상자를 눌러 간다.
  * 보물상자를 찾은 뒤 책 표지를 그리러 갔다가 돌아오면 지도 이동·대사를 다시 보여 주지 않고 보물상자 장면으로 바로 들어간다.
+ * 새 책을 시작할 때는(아직 한 단계도 안 했을 때) 지도 위에 "오늘 읽을 책은?" 소개를 먼저 덮어 보여 준다.
  */
 type Mode = "ready" | "running" | "arrived" | "leaving" | "treasure";
 
@@ -45,6 +49,13 @@ const ARRIVE_POSES: FoxPose[] = ["idle", "think", "wink", "cheer"];
 // N단계를 끝냈을 때 대사 (인덱스 = 끝낸 단계 수 - 1)
 const CLEAR_LINES = ["좋았어! 이대로 쭉 가보자", "잘했어! 다음으로 가보자", "최고야! 끝까지 해보자", "대단해! 고생했어!"];
 const TREASURE_HINT = "앞에 무언가 보여\n어서가보자!";
+
+/** 여울이 발끝 가운데에서 머리(귀 포함) 가장자리까지 = 그림 폭 × 이 비율 */
+const BUBBLE_HEAD_REACH = 0.45;
+/** 머리 가장자리와 말풍선 꼬리 끝 사이 여백 (지도 px) */
+const BUBBLE_MARGIN = 12;
+/** 말풍선 꼬리 끝 높이: 여울이 머리 꼭대기에서 키 × 이 비율만큼 아래 (귀 옆쯤) */
+const BUBBLE_TAIL_DROP = 0.1;
 
 /** 달리기 속도 (지도 px/초) */
 const RUN_SPEED = 520;
@@ -106,7 +117,7 @@ function legPath(leg: number): Point[] {
   return [STATIONS[leg].feet, LEGS[leg].via, STATIONS[leg + 1].feet];
 }
 
-export default function StudyScreen() {
+export default function StudyScreen({ bookTitle }: { bookTitle: string }) {
   const router = useRouter();
   const sideNavWidth = useSideNavWidth();
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
@@ -121,6 +132,8 @@ export default function StudyScreen() {
   const resumingTreasure = mode !== "treasure" && treasure !== null && cleared === LESSON_COUNT;
   // 상자를 여는 순간 진행 상태가 초기화돼도 보물상자 장면이 닫히지 않게 treasure 모드로 붙잡아 둔다.
   const holdTreasureScene = useCallback(() => setMode("treasure"), []);
+  const introSeen = useBookIntroSeen();
+  const showIntro = !introSeen && cleared === 0 && treasure === null;
 
   // 달리기: 길이에 비례한 시간 동안 다음 정거장까지 이동한다.
   useEffect(() => {
@@ -205,6 +218,9 @@ export default function StudyScreen() {
   const foxTop = feet.y - height;
   // 여울이가 화면 오른쪽 절반에 있으면 말풍선을 왼쪽으로 띄운다.
   const bubbleFlipped = feet.x - cameraX > viewWidth / 2;
+  // 말풍선 꼬리 끝은 여울이 머리(귀 포함) 바깥 옆에 둔다. 머리는 그림 폭의 가운데 ±45% 안에 들어온다.
+  const bubbleGap = height * FOX_ASPECT[pose] * BUBBLE_HEAD_REACH + BUBBLE_MARGIN;
+  const bubbleY = foxTop + height * BUBBLE_TAIL_DROP;
 
   const activePad = mode === "arrived" || mode === "leaving" ? cleared : null;
   // 지금 눌러서 갈 수 있는 곳: 다음 단계 발판 번호, 또는 보물상자
@@ -287,8 +303,8 @@ export default function StudyScreen() {
           {line && (
             <SpeechBubble
               key={line}
-              x={bubbleFlipped ? feet.x - 80 : feet.x + 80}
-              y={foxTop + (bubbleFlipped ? 60 : 25)}
+              x={bubbleFlipped ? feet.x - bubbleGap : feet.x + bubbleGap}
+              y={bubbleY}
               flipped={bubbleFlipped}
             >
               {line}
@@ -330,7 +346,11 @@ export default function StudyScreen() {
             onOpen={holdTreasureScene}
           />
         )}
+
+        {showIntro && <BookIntro title={bookTitle} onDone={markBookIntroSeen} />}
       </div>
+
+      <StudyDevPanel />
     </main>
   );
 }

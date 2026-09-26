@@ -219,6 +219,36 @@ input[type="number"] {
   }
 }
 
+/* 학습 시작: 여울이가 책가방을 챙기는 동안 점이 깜빡이고 막대가 차오른다 */
+@keyframes loading-dot {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@utility animate-loading-dot {
+  animation: loading-dot 1s ease-in-out infinite both;
+}
+@keyframes loading-fill {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+@utility animate-loading-fill {
+  animation: loading-fill 1s linear both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-loading-dot {
+    animation: none;
+  }
+}
+
 /* 번갈아 읽기: 다음 문장으로 넘어가면 문장 목록이 아래에서 위로 스르륵 올라온다 */
 @keyframes line-up {
   from {

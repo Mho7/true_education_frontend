@@ -16,6 +16,8 @@ const CHANGE_EVENT = "yeoul:study-change";
  */
 export type TreasureState = "found" | "reward-pending";
 const TREASURE_KEY = "yeoul.study.treasure.v1";
+/** 이번 책의 "오늘 읽을 책은?" 소개를 이미 봤는지. 한 바퀴를 끝내 다음 책으로 넘어가면 지운다. */
+const INTRO_KEY = "yeoul.study.intro.v1";
 
 function readCleared(): number {
   try {
@@ -54,6 +56,7 @@ export function completeLesson(step: number) {
 export function resetStudyProgress() {
   try {
     window.localStorage.removeItem(TREASURE_KEY);
+    window.localStorage.removeItem(INTRO_KEY);
   } catch {
     // 저장소를 못 쓰면 지울 것도 없다.
   }
@@ -87,4 +90,27 @@ export function markTreasureFound() {
 /** 표지 그리기·설명하기를 끝내 책장에 책을 꽂았을 때. 다음에 학습 지도에 오면 상자를 연다. */
 export function markTreasureRewardPending() {
   writeTreasureState("reward-pending");
+}
+
+function readBookIntroSeen(): boolean {
+  try {
+    return window.localStorage.getItem(INTRO_KEY) === "1";
+  } catch {
+    // 저장소를 못 쓰면 매번 소개를 보여 주기보다 바로 지도로 간다.
+    return true;
+  }
+}
+
+export function useBookIntroSeen(): boolean {
+  return useSyncExternalStore(subscribe, readBookIntroSeen, () => false);
+}
+
+/** "오늘 읽을 책은?" 소개와 출발 애니메이션을 다 봤을 때. 이 책을 끝낼 때까지 다시 보여 주지 않는다. */
+export function markBookIntroSeen() {
+  try {
+    window.localStorage.setItem(INTRO_KEY, "1");
+  } catch {
+    // 못 적어도 이번 화면에서는 지도로 넘어간다.
+  }
+  window.dispatchEvent(new Event(CHANGE_EVENT));
 }
