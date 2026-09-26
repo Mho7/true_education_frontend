@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { logout } from "@/lib/api/auth";
 import { signOut, useCurrentMember } from "@/lib/session";
 
 type SettingsModalProps = {
@@ -49,6 +50,8 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   }
 
   function handleLogout() {
+    // 서버 세션도 끝낸다. 실패해도(이미 만료 등) 화면에서는 로그아웃한다.
+    logout().catch(() => {});
     signOut();
     onClose();
     router.push("/");
