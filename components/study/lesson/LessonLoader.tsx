@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage, isApiError } from "@/lib/api/client";
-import { getReading, getToday } from "@/lib/api/learning";
-import type { ReadingResponse, TodayResponse } from "@/lib/api/types";
+import { getQuestions, getReading, getToday } from "@/lib/api/learning";
+import type { ComprehensionQuestion, ReadingResponse, TodayResponse } from "@/lib/api/types";
 import { LESSON_COUNT } from "@/lib/studyLessons";
+import ComprehensionLesson from "./ComprehensionLesson";
 import LessonFrame from "./LessonFrame";
 import ReadingLesson from "./ReadingLesson";
 
@@ -15,11 +16,13 @@ import ReadingLesson from "./ReadingLesson";
  * 단계 화면은 API 응답 객체만 props로 받으므로 로딩 방식이 바뀌어도 그대로 쓸 수 있다.
  */
 
-export type LoadedStep = 1;
+export type LoadedStep = 1 | 2;
 
-const TITLES: Record<LoadedStep, string> = { 1: "번갈아 읽기" };
+const TITLES: Record<LoadedStep, string> = { 1: "번갈아 읽기", 2: "이해 질문" };
 
-type Loaded = { step: 1; assignmentId: number; bookTitle: string; reading: ReadingResponse };
+type Loaded =
+  | { step: 1; assignmentId: number; bookTitle: string; reading: ReadingResponse }
+  | { step: 2; assignmentId: number; questions: ComprehensionQuestion[] };
 
 type State =
   | { status: "loading" }
@@ -36,6 +39,7 @@ async function load(step: LoadedStep): Promise<Exclude<State, { status: "loading
     return { status: "blocked", message: "지금은 읽을 책이 없어요.", action: { href: "/home", label: "여울이 방으로" } };
   }
   const { assignmentId, book } = today;
+  if (step === 2) return { status: "loaded", data: { step, assignmentId, questions: await getQuestions(assignmentId) } };
   return { status: "loaded", data: { step, assignmentId, bookTitle: book.title, reading: await getReading(assignmentId) } };
 }
 
@@ -66,6 +70,7 @@ export default function LessonLoader({ step }: { step: LoadedStep }) {
 
   if (state.status === "loaded") {
     const { data } = state;
+    if (data.step === 2) return <ComprehensionLesson assignmentId={data.assignmentId} questions={data.questions} />;
     return <ReadingLesson assignmentId={data.assignmentId} bookTitle={data.bookTitle} reading={data.reading} />;
   }
 

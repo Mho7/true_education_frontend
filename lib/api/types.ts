@@ -148,3 +148,43 @@ export type RewardBoardResponse = {
 };
 
 export type SetRewardRequest = { name: string };
+
+// ---------- 이해 질문 ----------
+
+export type QuestionStage = "WHO" | "WHAT" | "WHY" | "EMOTION";
+
+/** GET /assignments/{id}/questions 의 한 문제. 정답·힌트는 끝났거나 1차 오답 뒤에만 state에 들어온다. */
+export type ComprehensionQuestion = {
+  questionId: number;
+  order: number;
+  stage: QuestionStage;
+  text: string;
+  /** 보기 번호 = 배열 index(0부터) */
+  options: string[];
+  state: {
+    attempts: number;
+    finished: boolean;
+    /** 끝난 문제만: 맞혔는지 */
+    correct?: boolean;
+    /** 끝난 문제만: 정답 보기 번호 */
+    answer?: number;
+    /** 1차 오답 뒤 아직 안 끝난 문제만 */
+    hint?: string;
+  };
+};
+
+/** POST /assignments/{id}/questions/{questionId}/attempts */
+export type ChoiceAttemptRequest = { answer: number; responseTimeMs?: number };
+
+/**
+ * 정답: { correct: true, finished: true }
+ * 1차 오답: { correct: false, finished: false, hint }
+ * 2차 오답: { correct: false, finished: true, answer }
+ */
+export type ChoiceAttemptResponse = {
+  correct: boolean;
+  finished: boolean;
+  hint?: string;
+  answer?: number;
+  stage: LearningStage;
+};
