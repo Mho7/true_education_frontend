@@ -19,8 +19,8 @@ type PartKey = (typeof PARTS)[number]["key"];
 const STATUS: Record<DashboardStageStatus, { label: string; className: string; icon: string }> = {
   NEEDS_HELP: { label: "도움이 필요해요", className: "bg-[#FDECE8] text-[#A8402B]", icon: "!" },
   COMFORTABLE: { label: "잘하고 있어요", className: "bg-[#E9F4E3] text-[#2E6B3A]", icon: "✓" },
-  NORMAL: { label: "차근차근 익히는 중", className: "bg-[#F4EFE8] text-[#5C5149]", icon: "·" },
-  COLLECTING: { label: "모으는 중", className: "bg-[#F4EFE8] text-[#857B72]", icon: "…" },
+  NORMAL: { label: "차근차근 익히는 중", className: "bg-[#F3F4F6] text-[#4B5260]", icon: "·" },
+  COLLECTING: { label: "모으는 중", className: "bg-[#F3F4F6] text-[#8A909C]", icon: "…" },
 };
 
 const percent = (rate: number | null) => `${Math.round((rate ?? 0) * 100)}%`;
@@ -32,7 +32,7 @@ export default function StageResults({ rows, collecting }: { rows: StageRow[]; c
 
   return (
     <div>
-      <ul className="flex flex-wrap gap-x-[16px] gap-y-[4px] text-[13px] text-[#5C5149]" aria-label="범례">
+      <ul className="flex flex-wrap gap-x-[16px] gap-y-[4px] text-[13px] text-[#4B5260]" aria-label="범례">
         {PARTS.map((part) => (
           <li key={part.key} className="flex items-center gap-[6px]">
             <span aria-hidden className="size-[10px] rounded-[3px]" style={{ background: part.color }} />
@@ -48,9 +48,9 @@ export default function StageResults({ rows, collecting }: { rows: StageRow[]; c
           const status = STATUS[pending ? "COLLECTING" : row.status];
           return (
             <li key={row.stage} className="grid grid-cols-[88px_1fr_auto] items-center gap-[12px] max-sm:grid-cols-[72px_1fr]">
-              <span className="text-[15px] font-bold break-keep text-[#2B2420]">{row.label}</span>
+              <span className="text-[15px] font-bold break-keep text-[#111418]">{row.label}</span>
               {pending ? (
-                <span className="flex h-[24px] items-center rounded-[6px] border border-dashed border-[#DCD2C4] px-[10px] text-[12px] text-[#857B72]">
+                <span className="flex h-[24px] items-center rounded-[6px] border border-dashed border-[#E6E8EC] px-[10px] text-[12px] text-[#8A909C]">
                   데이터를 모으는 중
                 </span>
               ) : (
@@ -80,10 +80,10 @@ export default function StageResults({ rows, collecting }: { rows: StageRow[]; c
                           {isActive && (
                             <span
                               role="status"
-                              className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-10 -translate-x-1/2 rounded-[10px] border border-[#EFE6DA] bg-white px-[10px] py-[6px] text-left whitespace-nowrap shadow-[0_6px_16px_rgba(90,62,46,0.12)]"
+                              className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-10 -translate-x-1/2 rounded-[10px] border border-[#E6E8EC] bg-white px-[10px] py-[6px] text-left whitespace-nowrap shadow-[0_6px_16px_rgba(90,62,46,0.12)]"
                             >
-                              <span className="block text-[14px] font-bold text-[#2B2420]">{percent(rate)}</span>
-                              <span className="block text-[12px] font-normal text-[#857B72]">
+                              <span className="block text-[14px] font-bold text-[#111418]">{percent(rate)}</span>
+                              <span className="block text-[12px] font-normal text-[#8A909C]">
                                 {part.label} · {row.total}문제 중
                               </span>
                             </span>
@@ -104,10 +104,10 @@ export default function StageResults({ rows, collecting }: { rows: StageRow[]; c
       </ul>
 
       {!collecting && (
-        <details className="mt-[12px] text-[13px] text-[#5C5149]">
-          <summary className="cursor-pointer text-[#857B72] hover:text-[#5C5149]">표로 보기</summary>
+        <details className="mt-[12px] text-[13px] text-[#4B5260]">
+          <summary className="cursor-pointer text-[#8A909C] hover:text-[#4B5260]">표로 보기</summary>
           <table className="mt-[8px] w-full text-left tabular-nums">
-            <thead className="text-[#857B72]">
+            <thead className="text-[#8A909C]">
               <tr>
                 <th className="py-[4px] font-medium">유형</th>
                 <th className="py-[4px] font-medium">푼 문제</th>
@@ -120,7 +120,7 @@ export default function StageResults({ rows, collecting }: { rows: StageRow[]; c
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.stage} className="border-t border-[#F2ECE3]">
+                <tr key={row.stage} className="border-t border-[#EEF0F3]">
                   <td className="py-[4px]">{row.label}</td>
                   <td className="py-[4px]">{row.total}</td>
                   {PARTS.map((part) => (

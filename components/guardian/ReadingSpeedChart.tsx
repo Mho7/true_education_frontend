@@ -80,15 +80,15 @@ export default function ReadingSpeedChart({ points }: { points: Point[] }) {
           >
             {ticks.map((tick) => (
               <g key={tick}>
-                <line x1={PAD.left} x2={PAD.left + plotW} y1={y(tick)} y2={y(tick)} stroke="#EFE8DE" strokeWidth={1} />
-                <text x={PAD.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" className="fill-[#857B72] text-[11px] tabular-nums">
+                <line x1={PAD.left} x2={PAD.left + plotW} y1={y(tick)} y2={y(tick)} stroke="#EEF0F3" strokeWidth={1} />
+                <text x={PAD.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" className="fill-[#8A909C] text-[11px] tabular-nums">
                   {tick}
                 </text>
               </g>
             ))}
             {points.map((p, i) =>
               i % labelEvery === 0 || i === last ? (
-                <text key={p.date} x={x(i)} y={HEIGHT - 8} textAnchor="middle" className="fill-[#857B72] text-[11px] tabular-nums">
+                <text key={p.date} x={x(i)} y={HEIGHT - 8} textAnchor="middle" className="fill-[#8A909C] text-[11px] tabular-nums">
                   {formatDate(p.date)}
                 </text>
               ) : null,
@@ -98,13 +98,13 @@ export default function ReadingSpeedChart({ points }: { points: Point[] }) {
             {points.length > 1 && <path d={line} fill="none" stroke={LINE} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
 
             {activePoint && active !== null && (
-              <line x1={x(active)} x2={x(active)} y1={PAD.top} y2={PAD.top + plotH} stroke="#CFC4B6" strokeWidth={1} />
+              <line x1={x(active)} x2={x(active)} y1={PAD.top} y2={PAD.top + plotH} stroke="#D5D9E0" strokeWidth={1} />
             )}
             {/* 마지막 점과 가리킨 점에만 표시(점마다 숫자를 달지 않는다) */}
             {[last, ...(active !== null && active !== last ? [active] : [])].map((i) => (
               <circle key={i} cx={x(i)} cy={y(points[i].syllablesPerMinute)} r={4.5} fill={LINE} stroke="#FFFFFF" strokeWidth={2} />
             ))}
-            <text x={x(last) + 10} y={y(points[last].syllablesPerMinute)} dy="0.32em" className="fill-[#2B2420] text-[12px] font-bold">
+            <text x={x(last) + 10} y={y(points[last].syllablesPerMinute)} dy="0.32em" className="fill-[#111418] text-[12px] font-bold">
               {formatSpeed(points[last].syllablesPerMinute)}
             </text>
           </svg>
@@ -113,11 +113,11 @@ export default function ReadingSpeedChart({ points }: { points: Point[] }) {
         {activePoint && active !== null && (
           <div
             role="status"
-            className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-[10px] border border-[#EFE6DA] bg-white px-[12px] py-[8px] text-[12px] whitespace-nowrap shadow-[0_6px_16px_rgba(90,62,46,0.12)]"
+            className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-[10px] border border-[#E6E8EC] bg-white px-[12px] py-[8px] text-[12px] whitespace-nowrap shadow-[0_6px_16px_rgba(90,62,46,0.12)]"
             style={{ left: Math.min(Math.max(x(active), 70), width - 70) }}
           >
-            <p className="text-[15px] font-bold text-[#2B2420]">분당 {formatSpeed(activePoint.syllablesPerMinute)}음절</p>
-            <p className="mt-[2px] flex items-center gap-[6px] text-[#857B72]">
+            <p className="text-[15px] font-bold text-[#111418]">분당 {formatSpeed(activePoint.syllablesPerMinute)}음절</p>
+            <p className="mt-[2px] flex items-center gap-[6px] text-[#8A909C]">
               <span aria-hidden className="h-[2px] w-[12px] rounded-full" style={{ background: LINE }} />
               {formatDate(activePoint.date)} · {activePoint.syllables}음절 / {Math.round(activePoint.durationMs / 1000)}초
             </p>
@@ -125,10 +125,10 @@ export default function ReadingSpeedChart({ points }: { points: Point[] }) {
         )}
       </div>
 
-      <details className="mt-[8px] text-[13px] text-[#5C5149]">
-        <summary className="cursor-pointer text-[#857B72] hover:text-[#5C5149]">표로 보기</summary>
+      <details className="mt-[8px] text-[13px] text-[#4B5260]">
+        <summary className="cursor-pointer text-[#8A909C] hover:text-[#4B5260]">표로 보기</summary>
         <table className="mt-[8px] w-full text-left tabular-nums">
-          <thead className="text-[#857B72]">
+          <thead className="text-[#8A909C]">
             <tr>
               <th className="py-[4px] font-medium">날짜</th>
               <th className="py-[4px] font-medium">분당 음절</th>
@@ -138,7 +138,7 @@ export default function ReadingSpeedChart({ points }: { points: Point[] }) {
           </thead>
           <tbody>
             {points.map((p) => (
-              <tr key={p.date} className="border-t border-[#F2ECE3]">
+              <tr key={p.date} className="border-t border-[#EEF0F3]">
                 <td className="py-[4px]">{p.date}</td>
                 <td className="py-[4px]">{formatSpeed(p.syllablesPerMinute)}</td>
                 <td className="py-[4px]">{p.syllables}</td>

@@ -25,7 +25,7 @@ export default function RewardSettings({ studentId }: { studentId: number }) {
     };
   }, [studentId, attempt]);
 
-  if (state.status === "loading") return <p className="text-[14px] text-[#857B72]">보상을 불러오는 중…</p>;
+  if (state.status === "loading") return <p className="text-[14px] text-[#8A909C]">보상을 불러오는 중…</p>;
   if (state.status === "error") {
     return (
       <div className="flex flex-wrap items-center gap-[12px] text-[14px] text-[#A8402B]">
@@ -47,7 +47,7 @@ export default function RewardSettings({ studentId }: { studentId: number }) {
 }
 
 const secondaryButtonClassName =
-  "h-[36px] shrink-0 cursor-pointer rounded-full border border-[#DCD2C4] px-[14px] text-[13px] font-medium text-[#5C5149] transition hover:bg-[#FBF4EC] disabled:cursor-default disabled:opacity-50";
+  "h-[36px] shrink-0 cursor-pointer rounded-full border border-[#E6E8EC] px-[14px] text-[13px] font-medium text-[#4B5260] transition hover:bg-[#F7F8FA] disabled:cursor-default disabled:opacity-50";
 
 function RewardBoard({
   studentId,
@@ -114,18 +114,18 @@ function RewardBoard({
 
   return (
     <div>
-      <p className="text-[14px] text-[#5C5149]">
-        지금까지 도장 <strong className="text-[#2B2420]">{board.stampTotal}개</strong>를 모았어요. 도장 {board.stampsPerReward}개마다 보상을 하나씩 받아요.
+      <p className="text-[14px] text-[#4B5260]">
+        지금까지 도장 <strong className="text-[#111418]">{board.stampTotal}개</strong>를 모았어요. 도장 {board.stampsPerReward}개마다 보상을 하나씩 받아요.
       </p>
 
       {board.rewards.length === 0 ? (
-        <p className="mt-[14px] rounded-[12px] bg-[#FBF8F2] px-[16px] py-[14px] text-[14px] text-[#857B72]">아직 정한 보상이 없어요.</p>
+        <p className="mt-[14px] rounded-[12px] bg-[#F7F8FA] px-[16px] py-[14px] text-[14px] text-[#8A909C]">아직 정한 보상이 없어요.</p>
       ) : (
-        <ul className="mt-[14px] flex flex-col divide-y divide-[#F2ECE3]">
+        <ul className="mt-[14px] flex flex-col divide-y divide-[#EEF0F3]">
           {board.rewards.map((reward) => (
             <li key={reward.milestone} className="flex items-center gap-[12px] py-[10px]">
-              <span className="w-[72px] shrink-0 text-[13px] font-bold text-[#857B72] tabular-nums">도장 {reward.milestone}개</span>
-              <span className="min-w-0 flex-1 text-[15px] break-keep text-[#2B2420]">{reward.name}</span>
+              <span className="w-[72px] shrink-0 text-[13px] font-bold text-[#8A909C] tabular-nums">도장 {reward.milestone}개</span>
+              <span className="min-w-0 flex-1 text-[15px] break-keep text-[#111418]">{reward.name}</span>
               {reward.achieved ? (
                 <span className="rounded-full bg-[#E9F4E3] px-[10px] py-[3px] text-[12px] font-bold text-[#2E6B3A]">✓ 달성</span>
               ) : (
@@ -144,13 +144,13 @@ function RewardBoard({
       )}
 
       <form onSubmit={handleSubmit} className="mt-[16px] flex flex-wrap items-end gap-[10px]">
-        <label htmlFor={milestoneId} className="flex flex-col gap-[6px] text-[13px] font-medium text-[#5C5149]">
+        <label htmlFor={milestoneId} className="flex flex-col gap-[6px] text-[13px] font-medium text-[#4B5260]">
           목표
           <select
             id={milestoneId}
             value={milestone}
             onChange={(event) => pick(Number(event.target.value))}
-            className="h-[44px] rounded-[12px] bg-[#EFEBE6] px-[12px] text-[15px] text-[#2B2420] outline-none focus:ring-2 focus:ring-[#D2651F]/40"
+            className="h-[44px] rounded-[12px] bg-[#F3F4F6] px-[12px] text-[15px] text-[#111418] outline-none focus:ring-2 focus:ring-[#D2651F]/40"
           >
             {choices.map((choice) => (
               <option key={choice} value={choice}>
@@ -159,7 +159,7 @@ function RewardBoard({
             ))}
           </select>
         </label>
-        <label htmlFor={nameId} className="flex min-w-[200px] flex-1 flex-col gap-[6px] text-[13px] font-medium text-[#5C5149]">
+        <label htmlFor={nameId} className="flex min-w-[200px] flex-1 flex-col gap-[6px] text-[13px] font-medium text-[#4B5260]">
           아이에게 줄 보상
           <input
             id={nameId}
@@ -167,13 +167,13 @@ function RewardBoard({
             maxLength={REWARD_MAX_LENGTH}
             onChange={(event) => setName(event.target.value)}
             placeholder="예: 주말에 공원 가기"
-            className="h-[44px] rounded-[12px] bg-[#EFEBE6] px-[14px] text-[15px] text-[#2B2420] outline-none placeholder:text-[#8F8983] focus:ring-2 focus:ring-[#D2651F]/40"
+            className="h-[44px] rounded-[12px] bg-[#F3F4F6] px-[14px] text-[15px] text-[#111418] outline-none placeholder:text-[#A3A8B2] focus:ring-2 focus:ring-[#D2651F]/40"
           />
         </label>
         <button
           type="submit"
           disabled={busy || !name.trim()}
-          className="h-[44px] cursor-pointer rounded-full bg-[#D9621C] px-[22px] text-[15px] font-bold text-white transition hover:brightness-105 disabled:cursor-default disabled:opacity-50"
+          className="h-[44px] cursor-pointer rounded-full bg-[#E8672A] px-[22px] text-[15px] font-bold text-white transition hover:brightness-105 disabled:cursor-default disabled:opacity-50"
         >
           {existing ? "수정하기" : "저장하기"}
         </button>

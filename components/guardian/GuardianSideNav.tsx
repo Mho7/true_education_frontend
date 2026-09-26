@@ -1,21 +1,26 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { logout } from "@/lib/api/auth";
 import { signOut } from "@/lib/session";
 import { GearIcon, GiftIcon, HomeIcon, OpenBookIcon, RecordIcon } from "./guardianIcons";
 
-// 보호자 화면 왼쪽 메뉴(시안 abcc.png). 지금은 "홈"만 있고 나머지 메뉴는 화면이 생기면 연결한다.
-const ITEMS = [
-  { key: "home", label: "홈", Icon: HomeIcon, ready: true },
-  { key: "records", label: "학습 기록", Icon: RecordIcon, ready: false },
-  { key: "rewards", label: "리워드 설정", Icon: GiftIcon, ready: false },
-  { key: "account", label: "계정 관리", Icon: GearIcon, ready: false },
-] as const;
+export type GuardianView = "home" | "records" | "rewards";
 
-export default function GuardianSideNav() {
+// 보호자 화면 왼쪽 메뉴(시안 abcc.png). "계정 관리"는 화면이 생기면 연결한다.
+const ITEMS: { key: GuardianView | "account"; label: string; Icon: typeof HomeIcon }[] = [
+  { key: "home", label: "홈", Icon: HomeIcon },
+  { key: "records", label: "학습 기록", Icon: RecordIcon },
+  { key: "rewards", label: "리워드 설정", Icon: GiftIcon },
+  { key: "account", label: "계정 관리", Icon: GearIcon },
+];
+
+export default function GuardianSideNav({ active, onSelect }: { active: GuardianView; onSelect: (view: GuardianView) => void }) {
   const router = useRouter();
 
   function handleLogout() {
+    // 서버 세션도 끝낸다. 실패해도(이미 만료 등) 화면에서는 로그아웃한다.
+    logout().catch(() => {});
     signOut();
     router.push("/");
   }
@@ -37,20 +42,22 @@ export default function GuardianSideNav() {
 
       <p className="px-[30px] pb-[8px] text-[12px] font-semibold tracking-[0.04em] text-[#A3A8B2] max-lg:hidden">메뉴</p>
       <ul className="flex gap-[4px] px-[16px] max-lg:overflow-x-auto max-lg:pb-[12px] lg:flex-col">
-        {ITEMS.map(({ key, label, Icon, ready }) => {
-          const active = key === "home";
+        {ITEMS.map(({ key, label, Icon }) => {
+          const selected = key === active;
+          const ready = key !== "account";
           return (
             <li key={key} className="shrink-0">
               <button
                 type="button"
-                aria-current={active ? "page" : undefined}
+                aria-current={selected ? "page" : undefined}
                 aria-disabled={!ready}
                 title={ready ? undefined : "준비 중이에요"}
+                onClick={() => key !== "account" && onSelect(key)}
                 className={`flex h-[46px] w-full items-center gap-[12px] rounded-[12px] px-[14px] text-[16px] whitespace-nowrap transition max-lg:h-[40px] max-lg:text-[15px] ${
-                  active ? "bg-[#F3F4F6] font-semibold text-[#111418]" : "text-[#4B5260] hover:bg-[#F7F8FA]"
+                  selected ? "bg-[#F3F4F6] font-semibold text-[#111418]" : ready ? "text-[#4B5260] hover:bg-[#F7F8FA]" : "text-[#A3A8B2]"
                 } ${ready ? "cursor-pointer" : "cursor-default"}`}
               >
-                <Icon className={`size-[20px] shrink-0 ${active ? "text-[#E8672A]" : "text-[#8A909C]"}`} />
+                <Icon className={`size-[20px] shrink-0 ${selected ? "text-[#E8672A]" : ready ? "text-[#8A909C]" : "text-[#C7CBD2]"}`} />
                 {label}
               </button>
             </li>
