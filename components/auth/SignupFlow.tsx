@@ -380,7 +380,7 @@ function InfoStep({
               max={MAX_AGE}
               placeholder="예: 9"
               value={form.age}
-              onChange={(event) => setForm((prev) => ({ ...prev, age: event.target.value.replace(/D/g, "").slice(0, 2) }))}
+              onChange={(event) => setForm((prev) => ({ ...prev, age: event.target.value.replace(/\D/g, "").slice(0, 2) }))}
               message={error("age")}
             />
           )}
