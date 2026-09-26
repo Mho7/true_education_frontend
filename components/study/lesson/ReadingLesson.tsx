@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { errorMessage, isApiError } from "@/lib/api/client";
 import { getReading, saveReadingPage } from "@/lib/api/learning";
+import { TTS_ENABLED } from "@/lib/api/tts";
 import type { ReadingLine, ReadingResponse } from "@/lib/api/types";
 import { LESSON_COUNT } from "@/lib/studyLessons";
 import { completeLesson } from "@/lib/studyProgress";
 import LessonFrame from "./LessonFrame";
-import { listen, speak, stopSpeaking } from "./speech";
+import { listen, speak, speakLine, stopSpeaking } from "./speech";
 
 /**
  * intro     — 문장을 먼저 보여 주고 "시작할게요"를 기다린다
@@ -72,12 +73,14 @@ const turnPhase = (line: ReadingLine): Phase => (line.speaker === "YEOUL" ? "yeo
 
 type ReadingLessonProps = {
   assignmentId: number;
+  /** 여울이 차례 줄 음성(GET /books/{bookId}/lines/{lineId}/tts)에 쓴다 */
+  bookId: number;
   bookTitle: string;
   /** GET /assignments/{id}/reading 응답 */
   reading: ReadingResponse;
 };
 
-export default function ReadingLesson({ assignmentId, bookTitle, reading: initialReading }: ReadingLessonProps) {
+export default function ReadingLesson({ assignmentId, bookId, bookTitle, reading: initialReading }: ReadingLessonProps) {
   const router = useRouter();
   const [reading, setReading] = useState(initialReading);
   const [position, setPosition] = useState<Position>(() => resumePosition(initialReading));
@@ -164,14 +167,14 @@ export default function ReadingLesson({ assignmentId, bookTitle, reading: initia
   useEffect(() => {
     if (phase !== "yeowli") return;
     let pause = 0;
-    const stop = speak(sentence.text, () => {
+    const stop = speakLine({ bookId, lineId: sentence.id, text: sentence.text }, () => {
       pause = window.setTimeout(() => goNext(), TURN_PAUSE_MS);
     });
     return () => {
       stop();
       window.clearTimeout(pause);
     };
-  }, [phase, sentence]);
+  }, [phase, sentence, bookId]);
 
   // 아이 차례: 읽는 소리 듣기 → 끝나면 걸린 시간을 적고 칭찬
   useEffect(() => {
@@ -324,6 +327,16 @@ export default function ReadingLesson({ assignmentId, bookTitle, reading: initia
           onRetry={retrySave}
         />
       </div>
+
+      {/* Typecast 무료 요금제 조건: 서버 음성을 쓸 때 출처를 표기한다 */}
+      {TTS_ENABLED && (
+        <p className="absolute bottom-[14px] left-[34px] text-[14px] text-[#A89E94]">
+          여울이 목소리 · Powered by{" "}
+          <a href="https://typecast.ai" target="_blank" rel="noreferrer" className="underline hover:text-[#857B72]">
+            Typecast
+          </a>
+        </p>
+      )}
     </LessonFrame>
   );
 }

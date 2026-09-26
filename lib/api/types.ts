@@ -223,3 +223,8 @@ export type OrderingAttemptResponse = {
   hint?: string;
   stage: LearningStage;
 };
+
+// ---------- 여울이 음성(TTS) ----------
+
+/** GET /books/{bookId}/lines/{lineId}/tts. 음성을 만들지 못하면 503 */
+export type LineTtsResponse = { audioUrl: string };

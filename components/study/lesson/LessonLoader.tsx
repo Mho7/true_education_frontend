@@ -22,7 +22,7 @@ export type LoadedStep = 1 | 2 | 3;
 const TITLES: Record<LoadedStep, string> = { 1: "번갈아 읽기", 2: "이해 질문", 3: "순서 맞추기" };
 
 type Loaded =
-  | { step: 1; assignmentId: number; bookTitle: string; reading: ReadingResponse }
+  | { step: 1; assignmentId: number; bookId: number; bookTitle: string; reading: ReadingResponse }
   | { step: 2; assignmentId: number; questions: ComprehensionQuestion[] }
   | { step: 3; assignmentId: number; ordering: OrderingResponse };
 
@@ -43,7 +43,7 @@ async function load(step: LoadedStep): Promise<Exclude<State, { status: "loading
   const { assignmentId, book } = today;
   if (step === 2) return { status: "loaded", data: { step, assignmentId, questions: await getQuestions(assignmentId) } };
   if (step === 3) return { status: "loaded", data: { step, assignmentId, ordering: await getOrdering(assignmentId) } };
-  return { status: "loaded", data: { step, assignmentId, bookTitle: book.title, reading: await getReading(assignmentId) } };
+  return { status: "loaded", data: { step, assignmentId, bookId: book.id, bookTitle: book.title, reading: await getReading(assignmentId) } };
 }
 
 export default function LessonLoader({ step }: { step: LoadedStep }) {
@@ -75,7 +75,7 @@ export default function LessonLoader({ step }: { step: LoadedStep }) {
     const { data } = state;
     if (data.step === 2) return <ComprehensionLesson assignmentId={data.assignmentId} questions={data.questions} />;
     if (data.step === 3) return <SequenceLesson assignmentId={data.assignmentId} ordering={data.ordering} />;
-    return <ReadingLesson assignmentId={data.assignmentId} bookTitle={data.bookTitle} reading={data.reading} />;
+    return <ReadingLesson assignmentId={data.assignmentId} bookId={data.bookId} bookTitle={data.bookTitle} reading={data.reading} />;
   }
 
   const retry = () => {
