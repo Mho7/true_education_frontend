@@ -1,3 +1,4 @@
+import type { SignupParentRequest, SignupStudentRequest } from "@/lib/api/types";
 import type { MemberRole } from "@/lib/session";
 
 /** 문자열은 문단, 문자열 배열은 글머리표 목록 */
@@ -13,7 +14,10 @@ export type ConsentItem = {
   id: string;
   label: string;
   description: string;
-  detail: ConsentDetail;
+  /** 필수 항목을 모두 체크해야 다음 단계로 넘어간다 */
+  required: boolean;
+  /** 없으면 "자세히 보기"를 두지 않는다 */
+  detail?: ConsentDetail;
 };
 
 export type ConsentScreen = {
@@ -26,12 +30,19 @@ export type ConsentScreen = {
   items: ConsentItem[];
 };
 
+/** 가입 요청 body에 들어가는 동의 필드 */
+export type SignupAgreements = {
+  student: Pick<SignupStudentRequest, "guardianShareAgreed">;
+  guardian: Pick<SignupParentRequest, "termsAgreed" | "marketingAgreed" | "guardianConsentAgreed">;
+};
+
 // TODO: 실제 서비스 출시 전 정식 이용약관·개인정보 처리방침 문구로 교체한다.
 const GUARDIAN_ITEMS: ConsentItem[] = [
   {
     id: "terms",
     label: "[필수] 서비스 이용약관 동의",
     description: "서비스 이용에 필요한 기본적인 이용 규칙에 동의합니다.",
+    required: true,
     detail: {
       title: "서비스 이용약관",
       confirmLabel: "확인",
@@ -52,6 +63,7 @@ const GUARDIAN_ITEMS: ConsentItem[] = [
     id: "guardianPrivacy",
     label: "[필수] 보호자 개인정보 수집 및 이용 동의",
     description: "보호자 계정 생성과 아동 계정 연결을 위해 필요한 개인정보를 수집·이용합니다.",
+    required: true,
     detail: {
       title: "보호자 개인정보 수집 및 이용 안내",
       confirmLabel: "확인",
@@ -95,6 +107,7 @@ const GUARDIAN_ITEMS: ConsentItem[] = [
     id: "childPrivacy",
     label: "[필수] 만 14세 미만 아동 개인정보 처리에 대한 법정대리인 동의",
     description: "아동의 독서 활동 및 학습 기록 제공을 위해 필요한 개인정보를 처리하는 것에 동의합니다.",
+    required: true,
     detail: {
       title: "아동 개인정보 처리 안내",
       confirmLabel: "확인",
@@ -163,6 +176,7 @@ const GUARDIAN_ITEMS: ConsentItem[] = [
     id: "childSpeech",
     label: "[필수] 아동 음성 인식 기능 이용 안내 및 동의",
     description: "아이가 말한 내용을 텍스트로 변환하기 위해 Google Cloud Speech-to-Text를 사용합니다.",
+    required: true,
     detail: {
       title: "음성 인식(STT) 기능 안내",
       confirmLabel: "확인",
@@ -207,6 +221,7 @@ const GUARDIAN_ITEMS: ConsentItem[] = [
     id: "guardianDashboard",
     label: "[필수] 아동 학습 기록의 보호자 확인 안내",
     description: "아동의 독서 활동과 답변 등 일부 학습 기록을 보호자 대시보드에서 확인할 수 있습니다.",
+    required: true,
     detail: {
       title: "보호자 대시보드 제공 안내",
       confirmLabel: "확인",
@@ -249,6 +264,12 @@ const GUARDIAN_ITEMS: ConsentItem[] = [
       ],
     },
   },
+  {
+    id: "marketing",
+    label: "[선택] 마케팅 정보 수신 동의",
+    description: "새로운 책과 이벤트 소식을 받아 볼 수 있어요. 동의하지 않아도 가입할 수 있어요.",
+    required: false,
+  },
 ];
 
 const STUDENT_ITEMS: ConsentItem[] = [
@@ -256,6 +277,7 @@ const STUDENT_ITEMS: ConsentItem[] = [
     id: "activityRecord",
     label: "내 활동이 기록될 수 있다는 것을 확인했어요",
     description: "내가 어떤 책을 읽었는지와 독서 활동에서 한 답변이 기록될 수 있어요.",
+    required: true,
     detail: {
       title: "왜 기록하나요?",
       confirmLabel: "알겠어요",
@@ -275,6 +297,7 @@ const STUDENT_ITEMS: ConsentItem[] = [
     id: "speechToText",
     label: "내가 말한 내용이 글자로 바뀔 수 있다는 것을 확인했어요",
     description: "말하기 활동에서는 내가 한 말을 글자로 바꾸기 위해 마이크를 사용할 수 있어요.",
+    required: true,
     detail: {
       title: "마이크는 왜 사용하나요?",
       confirmLabel: "알겠어요",
@@ -294,6 +317,7 @@ const STUDENT_ITEMS: ConsentItem[] = [
     id: "guardianView",
     label: "보호자가 내 독서 활동을 볼 수 있다는 것을 확인했어요",
     description: "보호자는 내가 어떤 책을 읽고 어떻게 활동했는지 확인할 수 있어요.",
+    required: true,
     detail: {
       title: "보호자는 무엇을 볼 수 있나요?",
       confirmLabel: "알겠어요",
@@ -335,3 +359,27 @@ export const CONSENT_SCREENS: Record<MemberRole, ConsentScreen> = {
     items: STUDENT_ITEMS,
   },
 };
+
+export function hasRequiredConsents(role: MemberRole, agreedIds: string[]) {
+  return CONSENT_SCREENS[role].items.every((item) => !item.required || agreedIds.includes(item.id));
+}
+
+/**
+ * 동의 화면에서 체크한 항목을 가입 요청 필드로 옮긴다.
+ * - 학생 guardianShareAgreed: "보호자가 내 독서 활동을 볼 수 있다는 것을 확인했어요"
+ * - 보호자 termsAgreed: 서비스 이용약관 + 보호자 개인정보 수집·이용
+ * - 보호자 guardianConsentAgreed: 만 14세 미만 아동 개인정보 처리에 대한 법정대리인 동의
+ * - 보호자 marketingAgreed: 마케팅 정보 수신(선택)
+ */
+export function studentAgreements(agreedIds: string[]): SignupAgreements["student"] {
+  return { guardianShareAgreed: agreedIds.includes("guardianView") };
+}
+
+export function guardianAgreements(agreedIds: string[]): SignupAgreements["guardian"] {
+  const agreed = (id: string) => agreedIds.includes(id);
+  return {
+    termsAgreed: agreed("terms") && agreed("guardianPrivacy"),
+    guardianConsentAgreed: agreed("childPrivacy"),
+    marketingAgreed: agreed("marketing"),
+  };
+}

@@ -5,11 +5,19 @@ import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
 import DesignStage from "@/components/DesignStage";
 import { ChevronLeftIcon, GraduationCapIcon, UsersIcon } from "@/components/auth/icons";
-import { registerMember, type Member, type MemberRole } from "@/lib/session";
+import type { Member, MemberRole } from "@/lib/session";
+import { checkLoginIdAvailability, signupParent, signupStudent } from "@/lib/api/auth";
+import { ApiError, errorMessage } from "@/lib/api/client";
 import { CheckboxField, TextField } from "@/components/auth/SignupFields";
 import SignupStepper from "@/components/auth/SignupStepper";
 import ConsentDetailModal from "@/components/auth/ConsentDetailModal";
-import { CONSENT_SCREENS, type ConsentDetail } from "@/lib/signupConsents";
+import {
+  CONSENT_SCREENS,
+  guardianAgreements,
+  hasRequiredConsents,
+  studentAgreements,
+  type ConsentDetail,
+} from "@/lib/signupConsents";
 
 type Step = "type" | "consent" | "info" | "done";
 
@@ -68,6 +76,7 @@ export default function SignupFlow() {
             {step === "info" && (
               <InfoStep
                 role={role}
+                agreedIds={agreedIds}
                 onBack={() => setStep("consent")}
                 onComplete={(registered) => {
                   setMember(registered);
@@ -197,6 +206,7 @@ function ConsentStep({
   const [openDetail, setOpenDetail] = useState<ConsentDetail | null>(null);
   const [showError, setShowError] = useState(false);
   const allAgreed = items.every((item) => agreedIds.includes(item.id));
+  const requiredAgreed = hasRequiredConsents(role, agreedIds);
 
   function toggle(id: string, checked: boolean) {
     onAgreedChange(checked ? [...agreedIds, id] : agreedIds.filter((agreedId) => agreedId !== id));
@@ -204,8 +214,7 @@ function ConsentStep({
   }
 
   function handleSubmit() {
-    // 모든 항목이 필수라서 전부 체크해야 넘어간다.
-    if (!allAgreed) {
+    if (!requiredAgreed) {
       setShowError(true);
       return;
     }
@@ -248,13 +257,15 @@ function ConsentStep({
                   <span className="text-[12px] leading-[18px] break-keep text-[#8A7F76]">{item.description}</span>
                 </span>
               </CheckboxField>
-              <button
-                type="button"
-                onClick={() => setOpenDetail(item.detail)}
-                className="mt-[2px] ml-[46px] cursor-pointer self-start text-[12px] font-medium text-[#8B6650] hover:underline"
-              >
-                자세히 보기 &gt;
-              </button>
+              {item.detail && (
+                <button
+                  type="button"
+                  onClick={() => setOpenDetail(item.detail ?? null)}
+                  className="mt-[2px] ml-[46px] cursor-pointer self-start text-[12px] font-medium text-[#8B6650] hover:underline"
+                >
+                  자세히 보기 &gt;
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -281,16 +292,21 @@ type InfoErrors = Partial<Record<"name" | "age" | "loginId" | "password" | "pass
 
 function InfoStep({
   role,
+  agreedIds,
   onBack,
   onComplete,
 }: {
   role: MemberRole;
+  agreedIds: string[];
   onBack: () => void;
   onComplete: (member: Member) => void;
 }) {
   const isGuardian = role === "guardian";
   const [form, setForm] = useState({ name: "", age: "", loginId: "", password: "", passwordConfirm: "", studentCode: "" });
   const [checkedLoginId, setCheckedLoginId] = useState<string | null>(null);
+  const [checkingLoginId, setCheckingLoginId] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [errors, setErrors] = useState<InfoErrors>({});
 
   const update = (key: keyof typeof form) => (event: { target: { value: string } }) =>
@@ -298,18 +314,26 @@ function InfoStep({
 
   const loginIdVerified = checkedLoginId !== null && checkedLoginId === form.loginId.trim();
 
-  function handleCheckLoginId() {
+  async function handleCheckLoginId() {
     const loginId = form.loginId.trim();
     if (!loginId) {
       setErrors((prev) => ({ ...prev, loginId: "아이디를 입력해 주세요" }));
       return;
     }
-    // TODO: 중복확인 API 연동. 지금은 입력값을 사용 가능한 아이디로 간주한다.
-    setCheckedLoginId(loginId);
-    setErrors((prev) => ({ ...prev, loginId: undefined }));
+    setCheckingLoginId(true);
+    try {
+      const { available } = await checkLoginIdAvailability(loginId);
+      setCheckedLoginId(available ? loginId : null);
+      setErrors((prev) => ({ ...prev, loginId: available ? undefined : "이미 사용 중인 아이디예요" }));
+    } catch (error) {
+      setCheckedLoginId(null);
+      setErrors((prev) => ({ ...prev, loginId: errorMessage(error) }));
+    } finally {
+      setCheckingLoginId(false);
+    }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const next: InfoErrors = {};
     if (!form.name.trim()) next.name = "이름을 입력해 주세요";
@@ -324,17 +348,33 @@ function InfoStep({
     if (isGuardian && !form.studentCode.trim()) next.studentCode = "학생 연결 코드를 입력해 주세요";
 
     setErrors(next);
-    if (Object.keys(next).length > 0) return;
-    // TODO: 회원가입 API 연동 (role, form, 동의 단계에서 체크한 항목과 동의 시각)
-    onComplete(
-      registerMember({
-        loginId: form.loginId.trim(),
-        name: form.name.trim(),
-        role,
-        age: isGuardian ? undefined : age,
-        studentCode: isGuardian ? form.studentCode.trim().toUpperCase() : undefined,
-      })
-    );
+    setFormError(null);
+    if (Object.keys(next).length > 0 || submitting) return;
+
+    const base = { name: form.name.trim(), loginId: form.loginId.trim(), password: form.password };
+    // 학생 코드는 대소문자를 구분하므로 입력한 그대로 보낸다.
+    const studentCode = form.studentCode.trim();
+    setSubmitting(true);
+    try {
+      if (isGuardian) {
+        await signupParent({ ...base, studentCode, ...guardianAgreements(agreedIds) });
+        onComplete({ loginId: base.loginId, name: base.name, role, studentCode });
+      } else {
+        const created = await signupStudent({ ...base, age, ...studentAgreements(agreedIds) });
+        onComplete({ loginId: base.loginId, name: base.name, role, age, studentCode: created.studentCode });
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setCheckedLoginId(null);
+        setErrors({ loginId: "이미 사용 중인 아이디예요" });
+      } else if (error instanceof ApiError && error.status === 404) {
+        setErrors({ studentCode: "일치하는 학생 코드가 없어요. 대소문자까지 확인해 주세요" });
+      } else {
+        setFormError(errorMessage(error));
+      }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const error = (key: keyof InfoErrors) => (errors[key] ? { text: errors[key], tone: "error" as const } : null);
@@ -398,7 +438,8 @@ function InfoStep({
             <button
               type="button"
               onClick={handleCheckLoginId}
-              className="h-[50px] w-[90px] shrink-0 cursor-pointer rounded-[12px] border-[1.2px] border-[#D9CFC4] text-[14px] font-medium text-[#7A5A45] transition hover:bg-[#FBF4EC]"
+              disabled={checkingLoginId}
+              className="h-[50px] w-[90px] shrink-0 cursor-pointer rounded-[12px] border-[1.2px] border-[#D9CFC4] text-[14px] font-medium text-[#7A5A45] transition hover:bg-[#FBF4EC] disabled:cursor-default disabled:opacity-60"
             >
               중복확인
             </button>
@@ -439,8 +480,18 @@ function InfoStep({
           />
         )}
 
-        <button type="submit" className={`mt-[26px] ${primaryButtonClassName}`}>
-          가입하기
+        {formError && (
+          <p role="alert" className="mt-[16px] text-center text-[12px] text-[#D0582A]">
+            {formError}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className={`mt-[26px] ${primaryButtonClassName} disabled:cursor-default disabled:opacity-60`}
+        >
+          {submitting ? "가입하는 중…" : "가입하기"}
         </button>
       </form>
     </>
