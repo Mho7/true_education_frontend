@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import LessonLoader from "@/components/study/lesson/LessonLoader";
-import SequenceLesson from "@/components/study/lesson/SequenceLesson";
 import TitleLesson from "@/components/study/lesson/TitleLesson";
-import { getSequenceQuiz } from "@/lib/sequenceQuiz";
 import { LESSON_COUNT } from "@/lib/studyLessons";
 import { getTitleActivity } from "@/lib/titleActivity";
 
@@ -25,6 +23,6 @@ export default async function LessonPage(props: PageProps<"/study/lesson/[step]"
   // TODO(#5 백엔드 패치): 1~3단계는 서버 데이터 로딩으로 바뀌기 전까지 브라우저에서 불러온다(LessonLoader).
   if (stepNumber === 1) return <LessonLoader step={1} />;
   if (stepNumber === 2) return <LessonLoader step={2} />;
-  if (stepNumber === 3) return <SequenceLesson quiz={await getSequenceQuiz()} />;
+  if (stepNumber === 3) return <LessonLoader step={3} />;
   return <TitleLesson activity={await getTitleActivity()} />;
 }

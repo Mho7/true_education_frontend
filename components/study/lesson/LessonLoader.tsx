@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage, isApiError } from "@/lib/api/client";
-import { getQuestions, getReading, getToday } from "@/lib/api/learning";
-import type { ComprehensionQuestion, ReadingResponse, TodayResponse } from "@/lib/api/types";
+import { getOrdering, getQuestions, getReading, getToday } from "@/lib/api/learning";
+import type { ComprehensionQuestion, OrderingResponse, ReadingResponse, TodayResponse } from "@/lib/api/types";
 import { LESSON_COUNT } from "@/lib/studyLessons";
 import ComprehensionLesson from "./ComprehensionLesson";
 import LessonFrame from "./LessonFrame";
 import ReadingLesson from "./ReadingLesson";
+import SequenceLesson from "./SequenceLesson";
 
 /*
  * TODO(#5 백엔드 패치): 학습 페이지의 서버 데이터 로딩으로 바뀌면 이 파일은 통째로 빠진다.
@@ -16,13 +17,14 @@ import ReadingLesson from "./ReadingLesson";
  * 단계 화면은 API 응답 객체만 props로 받으므로 로딩 방식이 바뀌어도 그대로 쓸 수 있다.
  */
 
-export type LoadedStep = 1 | 2;
+export type LoadedStep = 1 | 2 | 3;
 
-const TITLES: Record<LoadedStep, string> = { 1: "번갈아 읽기", 2: "이해 질문" };
+const TITLES: Record<LoadedStep, string> = { 1: "번갈아 읽기", 2: "이해 질문", 3: "순서 맞추기" };
 
 type Loaded =
   | { step: 1; assignmentId: number; bookTitle: string; reading: ReadingResponse }
-  | { step: 2; assignmentId: number; questions: ComprehensionQuestion[] };
+  | { step: 2; assignmentId: number; questions: ComprehensionQuestion[] }
+  | { step: 3; assignmentId: number; ordering: OrderingResponse };
 
 type State =
   | { status: "loading" }
@@ -40,6 +42,7 @@ async function load(step: LoadedStep): Promise<Exclude<State, { status: "loading
   }
   const { assignmentId, book } = today;
   if (step === 2) return { status: "loaded", data: { step, assignmentId, questions: await getQuestions(assignmentId) } };
+  if (step === 3) return { status: "loaded", data: { step, assignmentId, ordering: await getOrdering(assignmentId) } };
   return { status: "loaded", data: { step, assignmentId, bookTitle: book.title, reading: await getReading(assignmentId) } };
 }
 
@@ -71,6 +74,7 @@ export default function LessonLoader({ step }: { step: LoadedStep }) {
   if (state.status === "loaded") {
     const { data } = state;
     if (data.step === 2) return <ComprehensionLesson assignmentId={data.assignmentId} questions={data.questions} />;
+    if (data.step === 3) return <SequenceLesson assignmentId={data.assignmentId} ordering={data.ordering} />;
     return <ReadingLesson assignmentId={data.assignmentId} bookTitle={data.bookTitle} reading={data.reading} />;
   }
 

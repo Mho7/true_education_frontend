@@ -188,3 +188,38 @@ export type ChoiceAttemptResponse = {
   answer?: number;
   stage: LearningStage;
 };
+
+// ---------- 순서 맞추기 ----------
+
+/** GET /assignments/{id}/ordering. cards는 서버가 섞어서 보낸다. */
+export type OrderingResponse = {
+  questionId: number;
+  text: string;
+  cards: { id: string; text: string }[];
+  state: {
+    attempts: number;
+    remaining: number;
+    finished: boolean;
+    correct?: boolean;
+    /** 끝났을 때만: 정답 순서(카드 id) */
+    answer?: string[];
+  };
+};
+
+/** POST /assignments/{id}/ordering/attempts */
+export type OrderingAttemptRequest = { order: string[]; responseTimeMs?: number };
+
+/**
+ * 정답: { correct: true, finished: true }
+ * 오답(기회 남음): { correct: false, finished: false, remaining }
+ * 3번째 오답: { correct: false, finished: true, answer }
+ */
+export type OrderingAttemptResponse = {
+  correct: boolean;
+  finished: boolean;
+  remaining?: number;
+  answer?: string[];
+  /** 팀이 "첫 사건 힌트 유지"로 정하면 백엔드가 오답 응답에 넣어 줄 예정 */
+  hint?: string;
+  stage: LearningStage;
+};

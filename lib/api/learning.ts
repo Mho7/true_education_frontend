@@ -3,6 +3,9 @@ import type {
   ChoiceAttemptRequest,
   ChoiceAttemptResponse,
   ComprehensionQuestion,
+  OrderingAttemptRequest,
+  OrderingAttemptResponse,
+  OrderingResponse,
   ReadingResponse,
   SaveReadingPageRequest,
   SaveReadingPageResponse,
@@ -31,4 +34,14 @@ export function getQuestions(assignmentId: number) {
 /** 채점은 서버가 한다(최대 2회). 이미 끝난 문제면 409 */
 export function submitChoice(assignmentId: number, questionId: number, body: ChoiceAttemptRequest) {
   return apiRequest<ChoiceAttemptResponse>(`/assignments/${assignmentId}/questions/${questionId}/attempts`, { method: "POST", body });
+}
+
+/** 아직 순서 맞추기 단계가 아니면 409 */
+export function getOrdering(assignmentId: number) {
+  return apiRequest<OrderingResponse>(`/assignments/${assignmentId}/ordering`);
+}
+
+/** 채점은 서버가 한다(최대 3회). 이미 끝났으면 409 */
+export function submitOrdering(assignmentId: number, body: OrderingAttemptRequest) {
+  return apiRequest<OrderingAttemptResponse>(`/assignments/${assignmentId}/ordering/attempts`, { method: "POST", body });
 }
