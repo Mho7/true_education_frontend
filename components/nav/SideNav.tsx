@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ComponentType } from "react";
 import { HomeIcon, LibraryIcon, PencilIcon, SettingsIcon, StampIcon } from "@/components/icons/menuIcons";
 import SettingsModal from "@/components/settings/SettingsModal";
+import DailyStudyCompleteModal from "@/components/study/DailyStudyCompleteModal";
 import { useViewportScale } from "@/hooks/useViewportScale";
+import { useStudyEntryGate } from "@/lib/dailyStudy";
 
 type NavItem = {
   label: string;
@@ -38,6 +40,8 @@ export default function SideNav() {
   const scale = useViewportScale(NAV_DESIGN_HEIGHT);
   const [expanded, setExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 오늘 학습을 끝냈으면 "학습"을 눌러도 이동하지 않고 완료 안내를 띄운다.
+  const { noticeOpen, blockStudyEntry, closeNotice } = useStudyEntryGate();
   const designWidth = expanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
 
   useEffect(() => {
@@ -106,6 +110,9 @@ export default function SideNav() {
                 aria-label={label}
                 aria-current={active ? "page" : undefined}
                 title={expanded ? undefined : label}
+                onClick={(event) => {
+                  if (href === "/study" && blockStudyEntry()) event.preventDefault();
+                }}
                 className={rowClassName}
               >
                 {content}
@@ -144,6 +151,7 @@ export default function SideNav() {
       </div>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <DailyStudyCompleteModal open={noticeOpen} onClose={closeNotice} />
     </aside>
   );
 }

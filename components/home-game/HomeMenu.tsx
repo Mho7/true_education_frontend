@@ -21,7 +21,12 @@ const MENU_ITEMS: MenuItem[] = [
 const itemClassName = "flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition hover:bg-[#FBF4EC]";
 const iconBadgeClassName = "flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F3DFC9] text-[#8B6650]";
 
-export default function HomeMenu() {
+type HomeMenuProps = {
+  /** "학습"을 눌렀을 때 부른다. true를 돌려주면 이동하지 않는다 (오늘 학습을 이미 끝낸 경우). */
+  onStudyEntry?: () => boolean;
+};
+
+export default function HomeMenu({ onStudyEntry }: HomeMenuProps) {
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,7 +96,14 @@ export default function HomeMenu() {
         <ul className="flex flex-col gap-1">
           {MENU_ITEMS.map(({ href, label, description, Icon }) => (
             <li key={href}>
-              <Link href={href} onClick={() => setOpen(false)} className={itemClassName}>
+              <Link
+                href={href}
+                onClick={(event) => {
+                  setOpen(false);
+                  if (href === "/study" && onStudyEntry?.()) event.preventDefault();
+                }}
+                className={itemClassName}
+              >
                 <span className={iconBadgeClassName}>
                   <Icon className="size-5" />
                 </span>
