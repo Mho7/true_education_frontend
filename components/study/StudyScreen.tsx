@@ -133,7 +133,8 @@ export default function StudyScreen({ bookTitle }: { bookTitle: string }) {
   // 상자를 여는 순간 진행 상태가 초기화돼도 보물상자 장면이 닫히지 않게 treasure 모드로 붙잡아 둔다.
   const holdTreasureScene = useCallback(() => setMode("treasure"), []);
   const introSeen = useBookIntroSeen();
-  const showIntro = !introSeen && cleared === 0 && treasure === null;
+  // 보물상자를 여는 순간 진행 상태가 초기화돼 새 책 조건이 되지만, 보상 장면이 끝날 때까지는 소개를 띄우지 않는다.
+  const showIntro = !introSeen && cleared === 0 && treasure === null && mode !== "treasure";
 
   // 달리기: 길이에 비례한 시간 동안 다음 정거장까지 이동한다.
   useEffect(() => {

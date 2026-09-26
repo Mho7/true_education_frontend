@@ -18,10 +18,10 @@ type ExplainState = "ready" | "recording" | "review";
 const BOOK = { left: 76, top: 180, width: 439.762 };
 const BOOK_SCALE = BOOK.width / BOOK_WIDTH;
 const COLUMN = { left: 592, width: 456 };
-const ACTION_AREA_TOP = 549;
+// 시안의 "이야기 힌트" 상자를 빼고 그 자리만큼 아래 요소를 끌어올렸다.
+const ACTION_AREA_TOP = 353;
 // 시안 표지 그림 칸 바탕색
 const ART_BACKGROUND = "#FFFDF9";
-const HINT_QUESTIONS = ["누가 나왔나요?", "무슨 일이 있었나요?", "왜 기억에 남았나요?"];
 
 const ERROR_MESSAGES: Record<SpeechTranscriberError, string> = {
   unsupported: "이 브라우저에서는 음성 인식을 사용할 수 없어요.",
@@ -158,17 +158,6 @@ export default function ExplainDrawing({ draft, coverImage }: ExplainDrawingProp
         <p className="absolute top-[266px] left-0 text-[22px] leading-[30px] font-bold text-[#3A2A20]">어떤 장면을 그렸나요?</p>
         <p className="absolute top-[307px] left-0 text-[16px] leading-[24px] text-[#7A6555]">왜 이 장면을 그리고 싶었는지도 이야기해보세요.</p>
 
-        <section aria-label="이야기 힌트" className="absolute top-[353px] left-0 h-[170px] w-full rounded-[24px] bg-[#FBF3E8]">
-          <p className="absolute top-[16px] left-[20px] text-[12px] leading-[16px] text-[#A08A76]">말이 잘 떠오르지 않으면</p>
-          <ul className="absolute top-[37px] left-[19px]">
-            {HINT_QUESTIONS.map((question) => (
-              <li key={question} className="h-[40px] text-[19px] leading-[40px] text-[#7A5A44]">
-                {question}
-              </li>
-            ))}
-          </ul>
-        </section>
-
         {view === "ready" && (
           <ReadyPanel
             preparing={preparing}
@@ -226,7 +215,7 @@ function ReadyPanel({
       </button>
       <p
         role={errorMessage ? "alert" : undefined}
-        className={`absolute top-[680px] left-0 w-full text-center text-[13px] leading-[20px] ${
+        className={`absolute top-[484px] left-0 w-full text-center text-[13px] leading-[20px] ${
           errorMessage ? "font-bold text-[#C9602C]" : "text-[#A08A76]"
         }`}
       >
@@ -254,7 +243,7 @@ function RecordingPanel({ elapsedMs, stopping, onStop }: { elapsedMs: number; st
         <span className="ml-[10px] text-[22px] font-bold text-[#C9602C]">듣고 있어요...</span>
         <span className="ml-[25px] text-[16px] font-bold text-[#D98A5A] tabular-nums">{formatElapsed(elapsedMs)}</span>
       </button>
-      <p className="absolute top-[680px] left-0 w-full text-center text-[13px] leading-[20px] text-[#A08A76]">다 말했으면 눌러서 멈춰요</p>
+      <p className="absolute top-[484px] left-0 w-full text-center text-[13px] leading-[20px] text-[#A08A76]">다 말했으면 눌러서 멈춰요</p>
     </>
   );
 }
@@ -275,9 +264,9 @@ function ReviewPanel({
   const heard = transcript.length > 0;
   return (
     <>
-      <p className="absolute top-[602px] left-[4px] text-[14px] leading-[20px] font-bold text-[#7A6555]">이렇게 이야기했어요</p>
+      <p className="absolute top-[406px] left-[4px] text-[14px] leading-[20px] font-bold text-[#7A6555]">이렇게 이야기했어요</p>
       <div
-        className="absolute top-[634px] left-0 h-[94px] w-full overflow-y-auto rounded-[17.5px] border border-[#E6D8C4] bg-white px-[22px] py-[16px] text-[17px] leading-[29px] break-keep"
+        className="absolute top-[438px] left-0 h-[170px] w-full overflow-y-auto rounded-[17.5px] border border-[#E6D8C4] bg-white px-[22px] py-[16px] text-[17px] leading-[29px] break-keep"
         aria-live="polite"
       >
         {heard ? (
@@ -288,11 +277,11 @@ function ReviewPanel({
       </div>
 
       {saveFailed && (
-        <p role="alert" className="absolute top-[815px] right-0 text-[13px] leading-[20px] font-bold text-[#C9602C]">
+        <p role="alert" className="absolute top-[695px] right-0 text-[13px] leading-[20px] font-bold text-[#C9602C]">
           책을 저장하지 못했어요. 다시 눌러주세요.
         </p>
       )}
-      <div className="absolute top-[743px] right-0 flex items-center gap-[16px]">
+      <div className="absolute top-[623px] right-0 flex items-center gap-[16px]">
         <button
           type="button"
           onClick={onRetry}

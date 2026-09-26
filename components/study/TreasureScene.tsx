@@ -27,6 +27,13 @@ const OPENING_MS = 900;
 const SECOND_STAMP_DELAY = 1500;
 /** 표지 그리기·설명하기를 끝내고 돌아왔을 때 상자가 저절로 열리기까지 */
 const AUTO_OPEN_DELAY = 700;
+/** 스탬프 결과 문구가 뜬 뒤 방금 꽂은 책을 보러 책장으로 넘어가기까지 */
+const LIBRARY_DELAY = 3000;
+
+/** 스탬프 결과 문구가 뜨는 시각 (2개면 두 번째 스탬프가 찍힌 뒤) */
+function rewardTitleDelay(count: 1 | 2) {
+  return count === 2 ? SECOND_STAMP_DELAY + 500 : 900;
+}
 
 function makeConfetti(count: number, delay: number): ConfettiPiece[] {
   return Array.from({ length: count }, () => {
@@ -103,6 +110,13 @@ export default function TreasureScene({ scale, viewWidth, resume, onOpen }: Trea
     });
     setPhase("opening");
   }, [onOpen]);
+
+  // 스탬프를 받고 나면 방금 완성해 꽂은 책을 보러 책장으로 간다.
+  useEffect(() => {
+    if (phase !== "reward" || !reward) return;
+    const timer = window.setTimeout(() => router.push("/library"), rewardTitleDelay(reward.count) + LIBRARY_DELAY);
+    return () => window.clearTimeout(timer);
+  }, [phase, reward, router]);
 
   // 다 만들고 돌아왔으면 "야호!"·지도 이동 없이 잠깐 뒤 바로 연다.
   useEffect(() => {
@@ -216,7 +230,7 @@ function DrawingPrompt({ scale, onStart }: { scale: number; onStart: () => void 
 
 function RewardReveal({ count, confetti, scale }: { count: 1 | 2; confetti: ConfettiPiece[]; scale: number }) {
   const isDouble = count === 2;
-  const titleDelay = isDouble ? SECOND_STAMP_DELAY + 500 : 900;
+  const titleDelay = rewardTitleDelay(count);
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center" role="status">
@@ -281,8 +295,8 @@ function RewardReveal({ count, confetti, scale }: { count: 1 | 2; confetti: Conf
           </p>
 
           <div className="relative mt-[40px] flex animate-pop-in gap-[20px]" style={{ animationDelay: `${titleDelay + 500}ms` }}>
-            <PillButton href="/stamp">스탬프 보러 가기</PillButton>
-            <PillButton href="/home">홈으로</PillButton>
+            {/* 잠시 뒤 저절로 책장으로 넘어간다. 기다리지 않고 바로 가도 된다. */}
+            <PillButton href="/library">내 책장 보러 가기</PillButton>
           </div>
         </div>
       </div>
