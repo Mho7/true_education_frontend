@@ -96,3 +96,55 @@ export type SaveReadingPageResponse = {
   /** 마지막 쪽을 저장하면 다음 단계(QUESTION)로 바뀐다 */
   stage: LearningStage;
 };
+
+// ---------- 보호자 대시보드 ----------
+
+/** GET /parents/me/students */
+export type LinkedStudent = { studentId: number; name: string };
+
+export type DashboardStage = "WHO" | "WHAT" | "WHY" | "EMOTION" | "ORDER";
+
+/** COLLECTING: 판정 전 / NEEDS_HELP: 도움 필요 / COMFORTABLE: 잘함 / NORMAL: 보통 */
+export type DashboardStageStatus = "COLLECTING" | "NEEDS_HELP" | "COMFORTABLE" | "NORMAL";
+
+/** GET /parents/me/students/{studentId}/dashboard. 판정 기준·문구는 서버 값을 그대로 보여 준다. */
+export type DashboardResponse = {
+  student: LinkedStudent;
+  summary: {
+    completedBooks: number;
+    stampTotal: number;
+    inProgress: { assignmentId: number; title: string; stage: LearningStage } | null;
+  };
+  /** 날짜 오름차순 */
+  readingSpeed: { date: string; syllablesPerMinute: number; syllables: number; durationMs: number }[];
+  byStage: {
+    stage: DashboardStage;
+    label: string;
+    total: number;
+    /** 0~1, 푼 문제가 없으면 null */
+    firstTryRate: number | null;
+    afterRetryRate: number | null;
+    revealedRate: number | null;
+    status: DashboardStageStatus;
+  }[];
+  needsHelp: DashboardStage[];
+  comfortable: DashboardStage[];
+  comments: { stage: DashboardStage; status: Exclude<DashboardStageStatus, "COLLECTING">; text: string }[];
+  /** 완료한 책이 3권 미만이면 true */
+  collecting: boolean;
+  collectingMessage?: string;
+  /** 최근 완료 순 */
+  reflections: { assignmentId: number; title: string; transcript: string; durationMs: number; completedAt: string }[];
+};
+
+/** GET·PUT /parents/me/students/{studentId}/rewards[/{milestone}] */
+export type RewardBoardResponse = {
+  stampsPerReward: number;
+  stampTotal: number;
+  /** 목표치 오름차순 */
+  rewards: { milestone: number; name: string; achieved: boolean }[];
+  /** 아직 달성하지 않은 가장 작은 목표치 */
+  nextMilestone: number;
+};
+
+export type SetRewardRequest = { name: string };
