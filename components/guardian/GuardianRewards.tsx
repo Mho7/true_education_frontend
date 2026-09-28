@@ -2,8 +2,9 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { errorMessage, isApiError } from "@/lib/api/client";
-import { deleteReward, getRewardBoard, setReward } from "@/lib/api/parents";
+import { deleteReward, getRewardBoard, markRewardGiven, setReward, unmarkRewardGiven } from "@/lib/api/parents";
 import type { RewardBoardResponse } from "@/lib/api/types";
+import { rewardRows, type RewardRow } from "@/lib/rewardBoard";
 import { GuardianPage, useGuardian } from "./GuardianShell";
 import { CheckIcon, GiftIcon } from "./guardianIcons";
 import { ActionButton, cardClassName, Panel, StatusCard } from "./guardianUi";
@@ -13,11 +14,15 @@ import { useLoad } from "./useLoad";
 const UPCOMING_COUNT = 4;
 const REWARD_MAX_LENGTH = 100;
 
-/** 리워드 설정: 도장 5개마다 받을 보상을 목표별로 정한다 (GET·PUT·DELETE /parents/me/students/{id}/rewards) */
+/**
+ * 리워드 설정: 도장 5개마다 받을 보상을 목표별로 정하고, 아이에게 전했으면 "선물했어요"로 표시한다
+ * (GET·PUT·DELETE /parents/me/students/{id}/rewards, 전달 처리는 백엔드 준비 전이라 예시 데이터로 동작).
+ * 도장은 쓰지 않고 계속 쌓이므로, 달성한 뒤 전하지 않은 리워드는 도장이 더 쌓여도 "전해 주세요"로 남는다.
+ */
 export default function GuardianRewards() {
   const { child } = useGuardian();
   const [load, reload] = useLoad(() => getRewardBoard(child.studentId), `rewards-${child.studentId}`);
-  // 저장·삭제 뒤 받은 새 보상판 (다시 불러오기 전까지 이걸 쓴다)
+  // 저장·삭제·전달 처리 뒤 받은 새 보상판 (다시 불러오기 전까지 이걸 쓴다)
   const [updated, setUpdated] = useState<{ key: number; board: RewardBoardResponse } | null>(null);
 
   return (
@@ -37,26 +42,21 @@ export default function GuardianRewards() {
   );
 }
 
-type Row = { milestone: number; name?: string; achieved: boolean };
-
 function RewardBoard({ studentId, board, onChange }: { studentId: number; board: RewardBoardResponse; onChange: (board: RewardBoardResponse) => void }) {
   const step = board.stampsPerReward;
   const current = Math.min(Math.max(step - (board.nextMilestone - board.stampTotal), 0), step);
-
-  // 정해 둔 보상 + 다음 목표부터 몇 칸 (목표치 오름차순)
-  const byMilestone = new Map(board.rewards.map((reward) => [reward.milestone, reward]));
-  const milestones = new Set(board.rewards.map((reward) => reward.milestone));
-  for (let i = 0; i < UPCOMING_COUNT; i++) milestones.add(board.nextMilestone + i * step);
-  const rows: Row[] = [...milestones]
-    .sort((a, b) => a - b)
-    .map((milestone) => ({
-      milestone,
-      name: byMilestone.get(milestone)?.name,
-      achieved: board.stampTotal >= milestone,
-    }));
+  const rows = rewardRows(board, UPCOMING_COUNT);
+  const pendingCount = rows.filter((row) => row.status === "pending").length;
 
   return (
     <div className="flex flex-col gap-[20px]">
+      {pendingCount > 0 && (
+        <p role="status" className="flex items-center gap-[10px] rounded-[16px] bg-[#FFF1E8] px-[20px] py-[14px] text-[15px] font-semibold break-keep text-[#A8402B]">
+          <GiftIcon className="size-[20px] shrink-0" />
+          아직 아이에게 전하지 않은 리워드가 {pendingCount}개 있어요. 전한 뒤 &lsquo;선물했어요&rsquo;를 눌러 주세요.
+        </p>
+      )}
+
       <section className={`${cardClassName} flex flex-wrap items-center gap-[24px] p-[24px] max-sm:p-[16px]`}>
         <span className="flex size-[72px] shrink-0 items-center justify-center rounded-[20px] bg-[#FFF1E8] text-[#E8672A]">
           <GiftIcon className="size-[36px]" />
@@ -67,7 +67,7 @@ function RewardBoard({ studentId, board, onChange }: { studentId: number; board:
             {board.stampTotal}
             <span className="ml-[3px] text-[20px] font-semibold text-[#4B5260]">개</span>
           </p>
-          <p className="mt-[4px] text-[14px] break-keep text-[#4B5260]">도장 {step}개를 모을 때마다 리워드를 하나 받아요.</p>
+          <p className="mt-[4px] text-[14px] break-keep text-[#4B5260]">도장 {step}개를 모을 때마다 리워드를 하나 받아요. 도장은 쓰지 않고 계속 쌓여요.</p>
         </div>
         <div className="w-full max-w-[320px]">
           <div className="flex justify-between text-[13px] text-[#8A909C] tabular-nums">
@@ -84,10 +84,10 @@ function RewardBoard({ studentId, board, onChange }: { studentId: number; board:
         </div>
       </section>
 
-      <Panel title="목표별 리워드" description="이미 받은 리워드는 바꿀 수 없어요">
+      <Panel title="목표별 리워드" description="도장을 다 모으면 리워드를 전하고 '선물했어요'를 눌러 주세요. 선물한 리워드는 바꿀 수 없어요">
         <ul className="flex flex-col divide-y divide-[#EEF0F3]">
           {rows.map((row) => (
-            <RewardRow key={row.milestone} studentId={studentId} row={row} onChange={onChange} />
+            <RewardRowItem key={row.milestone} studentId={studentId} row={row} onChange={onChange} />
           ))}
         </ul>
       </Panel>
@@ -97,53 +97,60 @@ function RewardBoard({ studentId, board, onChange }: { studentId: number; board:
 
 const smallButton =
   "h-[36px] shrink-0 cursor-pointer rounded-full border border-[#E6E8EC] px-[14px] text-[13px] font-medium text-[#4B5260] transition hover:bg-[#F7F8FA] disabled:cursor-default disabled:opacity-50";
+const primarySmallButton =
+  "flex h-[36px] shrink-0 cursor-pointer items-center gap-[4px] rounded-full bg-[#E8672A] px-[16px] text-[13px] font-semibold text-white transition hover:brightness-105 disabled:cursor-default disabled:opacity-50";
 
-function RewardRow({ studentId, row, onChange }: { studentId: number; row: Row; onChange: (board: RewardBoardResponse) => void }) {
+const BADGE_TONE: Record<RewardRow["status"], string> = {
+  collecting: "bg-[#F3F4F6] text-[#4B5260]",
+  pending: "bg-[#FFF1E8] text-[#C4531D]",
+  given: "bg-[#E9F6EF] text-[#1B7A45]",
+};
+
+function formatMonthDay(iso: string) {
+  const date = new Date(iso);
+  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+function RewardRowItem({ studentId, row, onChange }: { studentId: number; row: RewardRow; onChange: (board: RewardBoardResponse) => void }) {
   const inputId = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(row.name ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!draft.trim() || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      onChange(await setReward(studentId, row.milestone, { name: draft.trim() }));
-      setEditing(false);
-    } catch (caught) {
-      setError(isApiError(caught, 409) ? "이미 받은 리워드는 바꿀 수 없어요." : errorMessage(caught));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove() {
+  async function run(action: () => Promise<RewardBoardResponse>, conflictMessage: string) {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      await deleteReward(studentId, row.milestone);
-      // DELETE는 204라 보상판을 다시 받아 온다.
-      onChange(await getRewardBoard(studentId));
-      setDraft("");
+      onChange(await action());
+      setEditing(false);
     } catch (caught) {
-      setError(isApiError(caught, 409) ? "이미 받은 리워드는 지울 수 없어요." : errorMessage(caught));
+      setError(isApiError(caught, 409) ? conflictMessage : errorMessage(caught));
     } finally {
       setBusy(false);
     }
   }
 
+  function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!draft.trim()) return;
+    void run(() => setReward(studentId, row.milestone, { name: draft.trim() }), "이미 선물한 리워드는 바꿀 수 없어요.");
+  }
+
+  function remove() {
+    void run(async () => {
+      await deleteReward(studentId, row.milestone);
+      setDraft("");
+      // DELETE는 204라 보상판을 다시 받아 온다.
+      return getRewardBoard(studentId);
+    }, "이미 선물한 리워드는 지울 수 없어요.");
+  }
+
   return (
-    <li className="py-[14px]">
+    <li className={`py-[14px] ${row.status === "pending" ? "-mx-[12px] rounded-[14px] bg-[#FFF8F3] px-[12px]" : ""}`}>
       <div className="flex flex-wrap items-center gap-[14px]">
-        <span
-          className={`flex h-[32px] w-[92px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold tabular-nums ${
-            row.achieved ? "bg-[#E9F6EF] text-[#1B7A45]" : "bg-[#F3F4F6] text-[#4B5260]"
-          }`}
-        >
+        <span className={`flex h-[32px] w-[92px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold tabular-nums ${BADGE_TONE[row.status]}`}>
           도장 {row.milestone}개
         </span>
 
@@ -182,21 +189,54 @@ function RewardRow({ studentId, row, onChange }: { studentId: number; row: Row; 
           </form>
         ) : (
           <>
-            <p className={`min-w-[180px] flex-1 text-[16px] break-keep ${row.name ? "font-semibold text-[#111418]" : "text-[#A3A8B2]"}`}>
-              {row.name ?? "아직 정하지 않았어요"}
-            </p>
-            {row.achieved ? (
-              <span className="flex items-center gap-[4px] text-[13px] font-semibold text-[#1B7A45]">
-                <CheckIcon className="size-[16px]" />
-                받았어요
+            <div className="min-w-[180px] flex-1">
+              <p className={`text-[16px] break-keep ${row.name ? "font-semibold text-[#111418]" : "text-[#A3A8B2]"}`}>
+                {row.name ?? "아직 정하지 않았어요"}
+              </p>
+              {row.status === "pending" && (
+                <p className="mt-[2px] text-[13px] font-semibold break-keep text-[#C4531D]">
+                  {row.name ? "도장을 다 모았어요! 아이에게 전해 주세요." : "도장을 다 모았어요! 리워드를 정해서 전해 주세요."}
+                </p>
+              )}
+              {row.status === "given" && row.givenAt && (
+                <p className="mt-[2px] text-[13px] text-[#6B7280]">{formatMonthDay(row.givenAt)}에 선물했어요</p>
+              )}
+            </div>
+
+            {row.status === "given" ? (
+              <span className="ml-auto flex items-center gap-[10px]">
+                <span className="flex items-center gap-[4px] text-[13px] font-semibold text-[#1B7A45]">
+                  <CheckIcon className="size-[16px]" />
+                  선물했어요
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void run(() => unmarkRewardGiven(studentId, row.milestone), "되돌리지 못했어요.")}
+                  disabled={busy}
+                  className={smallButton}
+                  aria-label={`도장 ${row.milestone}개 리워드 선물 표시 취소`}
+                >
+                  되돌리기
+                </button>
               </span>
             ) : (
               <span className="ml-auto flex gap-[6px]">
+                {row.status === "pending" && row.name && (
+                  <button
+                    type="button"
+                    onClick={() => void run(() => markRewardGiven(studentId, row.milestone), "아직 도장을 다 모으지 않았어요.")}
+                    disabled={busy}
+                    className={primarySmallButton}
+                  >
+                    <CheckIcon className="size-[15px]" />
+                    선물했어요
+                  </button>
+                )}
                 <button type="button" onClick={() => setEditing(true)} disabled={busy} className={smallButton}>
                   {row.name ? "수정" : "정하기"}
                 </button>
                 {row.name && (
-                  <button type="button" onClick={() => void remove()} disabled={busy} className={smallButton}>
+                  <button type="button" onClick={remove} disabled={busy} className={smallButton}>
                     삭제
                   </button>
                 )}

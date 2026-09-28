@@ -330,6 +330,7 @@ const RECORDS_NOTE = "학습 기록에서 자세히 확인해 주세요.";
  * 확인할 내용: 보호자가 지금 볼 일이 있는지만 알린다(유형 이름·이유·퍼센트는 학습 기록에서).
  * 학습 상태는 기존 판정(displayStatus)을 이 순서로 한 줄로 줄인다: 모으는 중 → 도움이 필요한 유형이 하나라도 있음 → 판정된 유형이 모두 잘함 → 그 밖(STATUS.NORMAL).
  * 리워드 줄은 늘 두고, 리워드를 정했는지는 기존처럼 reward.nextName으로 본다. 오른쪽에는 다음 리워드까지 모은 도장(기존 KPI 표시)을 둔다.
+ * 도장을 다 모았는데 아직 전하지 않은 리워드가 있으면 그 줄을 먼저 보여 준다(도장이 더 쌓여도 사라지지 않는다).
  */
 function CheckList({
   stages,
@@ -378,6 +379,18 @@ function CheckList({
       <SectionHeader title="확인할 내용" />
       <ul className="mt-[28px] divide-y divide-[#EEF0F3]">
         {status}
+        {reward.pending.length > 0 && (
+          <CheckItem
+            title={`아직 전하지 않은 리워드가 ${reward.pending.length}개 있어요.`}
+            tone="text-[#C4531D]"
+            href="/guardian/rewards"
+            action="리워드 전하기"
+          >
+            <p className={noteClassName}>
+              {reward.pending.map(({ milestone, name }) => `도장 ${milestone}개 · ${name ?? "리워드 정하기 전"}`).join(", ")}
+            </p>
+          </CheckItem>
+        )}
         {reward.nextName ? (
           <CheckItem title={reward.nextName} tone="text-[#111418]" href="/guardian/rewards" action="리워드 설정하기" aside={progress}>
             <p className={noteClassName}>다음 리워드</p>

@@ -64,8 +64,9 @@ function sampleDashboard(student: LinkedStudent): DashboardResponse {
   };
 }
 
-// 보상은 화면에서 정하고 지울 수 있게 메모리에 둔다 (새로고침하면 처음 예시로 돌아간다).
-const rewardNames = new Map<number, string>([[5, "좋아하는 간식 먹기"]]);
+// 보상은 화면에서 정하고 지우고 전달 처리할 수 있게 메모리에 둔다 (새로고침하면 처음 예시로 돌아간다).
+// 예시: 도장 6개를 모아 5개 목표는 달성했지만 아직 전하지 않은 상태.
+const sampleRewards = new Map<number, { name: string; givenAt: string | null }>([[5, { name: "좋아하는 간식 먹기", givenAt: null }]]);
 
 function rewardBoard(): RewardBoardResponse {
   const nextMilestone = (Math.floor(SAMPLE_STAMP_TOTAL / STAMPS_PER_REWARD) + 1) * STAMPS_PER_REWARD;
@@ -73,9 +74,9 @@ function rewardBoard(): RewardBoardResponse {
     stampsPerReward: STAMPS_PER_REWARD,
     stampTotal: SAMPLE_STAMP_TOTAL,
     nextMilestone,
-    rewards: [...rewardNames]
+    rewards: [...sampleRewards]
       .sort(([a], [b]) => a - b)
-      .map(([milestone, name]) => ({ milestone, name, achieved: SAMPLE_STAMP_TOTAL >= milestone })),
+      .map(([milestone, { name, givenAt }]) => ({ milestone, name, achieved: SAMPLE_STAMP_TOTAL >= milestone, givenAt })),
   };
 }
 
@@ -98,19 +99,38 @@ export async function getRewardBoard(studentId: number) {
   return respond(rewardBoard());
 }
 
-/** 이미 달성한 목표치는 409 */
+/** 아이에게 이미 전한(선물했어요) 목표치는 409. 달성했어도 아직 전하지 않았으면 정하거나 바꿀 수 있다 */
 export async function setReward(studentId: number, milestone: number, body: SetRewardRequest) {
   findStudent(studentId);
   if (milestone % STAMPS_PER_REWARD !== 0) throw new ApiError(400, "목표치는 5의 배수여야 해요.");
-  if (SAMPLE_STAMP_TOTAL >= milestone) throw new ApiError(409, "이미 달성한 목표예요.");
-  rewardNames.set(milestone, body.name.trim());
+  if (sampleRewards.get(milestone)?.givenAt) throw new ApiError(409, "이미 선물한 리워드예요.");
+  sampleRewards.set(milestone, { name: body.name.trim(), givenAt: null });
   return respond(rewardBoard());
 }
 
-/** 달성 전에만 지울 수 있다 */
+/** 아직 전하지 않은 리워드만 지울 수 있다 */
 export async function deleteReward(studentId: number, milestone: number) {
   findStudent(studentId);
-  if (SAMPLE_STAMP_TOTAL >= milestone) throw new ApiError(409, "이미 달성한 목표예요.");
-  rewardNames.delete(milestone);
+  if (sampleRewards.get(milestone)?.givenAt) throw new ApiError(409, "이미 선물한 리워드예요.");
+  sampleRewards.delete(milestone);
   return respond(undefined);
+}
+
+/** 보호자가 아이에게 리워드를 전했다고 기록한다. 달성했고 리워드를 정해 둔 목표치만 된다 */
+export async function markRewardGiven(studentId: number, milestone: number) {
+  findStudent(studentId);
+  const reward = sampleRewards.get(milestone);
+  if (!reward) throw new ApiError(404, "먼저 리워드를 정해 주세요.");
+  if (SAMPLE_STAMP_TOTAL < milestone) throw new ApiError(409, "아직 도장을 다 모으지 않았어요.");
+  sampleRewards.set(milestone, { ...reward, givenAt: reward.givenAt ?? new Date().toISOString() });
+  return respond(rewardBoard());
+}
+
+/** "선물했어요"를 잘못 눌렀을 때 되돌린다 */
+export async function unmarkRewardGiven(studentId: number, milestone: number) {
+  findStudent(studentId);
+  const reward = sampleRewards.get(milestone);
+  if (!reward) throw new ApiError(404, "정해 둔 리워드가 없어요.");
+  sampleRewards.set(milestone, { ...reward, givenAt: null });
+  return respond(rewardBoard());
 }

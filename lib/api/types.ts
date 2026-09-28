@@ -153,7 +153,16 @@ export type RewardBoardResponse = {
   stampsPerReward: number;
   stampTotal: number;
   /** 목표치 오름차순 */
-  rewards: { milestone: number; name: string; achieved: boolean }[];
+  rewards: {
+    milestone: number;
+    name: string;
+    achieved: boolean;
+    /**
+     * 보호자가 아이에게 리워드를 전하고 "선물했어요"를 누른 시각(ISO). 아직 안 줬으면 null.
+     * TODO(백엔드 요청): 아직 응답에 없다. ParentReward.givenAt과 전달 처리·취소 API가 생기면 그대로 쓴다.
+     */
+    givenAt: string | null;
+  }[];
   /** 아직 달성하지 않은 가장 작은 목표치 */
   nextMilestone: number;
 };
