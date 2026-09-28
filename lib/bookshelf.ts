@@ -23,7 +23,8 @@ export type CompletedBook = {
   explanation?: BookExplanation;
 };
 
-// TODO: 백엔드가 준비되면 서버 저장소로 교체한다. 지금은 브라우저(localStorage)에만 쌓인다.
+// 실제 책장은 서버(GET /bookshelf)에 있다. 여기 localStorage 목록은 개발용 더미 책(BookshelfDevPanel)만 담고,
+// 개발 모드에서만 서버 책 뒤에 이어 보여 준다.
 const STORAGE_KEY = "yeoul.bookshelf.v1";
 const CHANGE_EVENT = "yeoul:bookshelf-change";
 // 책이 꽂힐 때마다 이 순서대로 표지 디자인이 돌아간다 (public/library/book-<theme>.png).
@@ -62,8 +63,8 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/** 완성된 책 목록 (완성한 순서대로, 오래된 책이 앞) */
-export function useCompletedBooks(): CompletedBook[] {
+/** 개발용 더미 책 목록 (넣은 순서대로) */
+export function useDevBooks(): CompletedBook[] {
   return useSyncExternalStore(subscribe, readBooks, () => EMPTY);
 }
 
@@ -103,4 +104,30 @@ export function addCompletedBook(book: {
 export function clearCompletedBooks() {
   window.localStorage.removeItem(STORAGE_KEY);
   window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+// 서버는 표지 색을 모른다. 책을 완성할 때 아이가 보던 표지 색을 배정 id별로 기억해 책장에서도 같은 색으로 보여 준다.
+const THEME_KEY = "yeoul.bookshelf.themes.v1";
+
+function readThemes(): Record<string, BookTheme> {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(THEME_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, BookTheme>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function rememberBookTheme(assignmentId: number, theme: BookTheme) {
+  try {
+    window.localStorage.setItem(THEME_KEY, JSON.stringify({ ...readThemes(), [assignmentId]: theme }));
+  } catch {
+    // 못 적으면 책장에서 배정 id로 정한 색을 쓴다.
+  }
+}
+
+/** 책장에 그릴 표지 색. 기억한 색이 없으면(다른 기기에서 완성 등) 배정 id로 늘 같은 색을 고른다. 브라우저에서만 부른다. */
+export function bookThemeFor(assignmentId: number): BookTheme {
+  const saved = readThemes()[assignmentId];
+  return BOOK_THEMES.includes(saved) ? saved : BOOK_THEMES[assignmentId % BOOK_THEMES.length];
 }

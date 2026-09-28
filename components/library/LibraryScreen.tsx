@@ -1,12 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import BookCover, { BOOK_HEIGHT, BOOK_WIDTH } from "@/components/library/BookCover";
 import BookshelfDevPanel from "@/components/library/BookshelfDevPanel";
 import { Anchor, useElementSize, type Scale } from "@/components/stage/Anchor";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
-import { useCompletedBooks, type CompletedBook } from "@/lib/bookshelf";
+import { errorMessage, isApiError } from "@/lib/api/client";
+import { getBookshelf } from "@/lib/api/student";
+import { bookThemeFor, useDevBooks, type CompletedBook } from "@/lib/bookshelf";
 
 // 좌표는 책장 배경 그림(ABCD.png, 1671×941) 기준이다. 그림 전체가 사이드바 오른쪽 영역에 꽉 맞는다.
 const STAGE_WIDTH = 1671;
@@ -23,8 +26,38 @@ const SLOT_TOP = CUBBY_FLOOR_Y - SHELF_BOOK_HEIGHT;
 const BOOKS_PER_SHELF = CUBBY_CENTER_X.length;
 const slotLeft = (index: number) => CUBBY_CENTER_X[index] - SHELF_BOOK_WIDTH / 2;
 
+type ShelfState = { status: "loading" } | { status: "error"; message: string; needsLogin: boolean } | { status: "loaded"; books: CompletedBook[] };
+
 export default function LibraryScreen() {
-  const books = useCompletedBooks();
+  const [shelfState, setShelfState] = useState<ShelfState>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const devBooks = useDevBooks();
+
+  // 서버 책장(최근 순)을 불러와 오래된 책부터 꽂는다.
+  useEffect(() => {
+    let cancelled = false;
+    getBookshelf()
+      .then((items) => {
+        if (cancelled) return;
+        const books = [...items].reverse().map<CompletedBook>((item) => ({
+          id: `assignment-${item.assignmentId}`,
+          title: item.title,
+          completedAt: item.completedAt,
+          theme: bookThemeFor(item.assignmentId),
+          coverImage: item.coverImageUrl ?? undefined,
+        }));
+        setShelfState({ status: "loaded", books });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setShelfState({ status: "error", message: errorMessage(error), needsLogin: isApiError(error, 401) || isApiError(error, 403) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
+
+  const serverBooks = shelfState.status === "loaded" ? shelfState.books : [];
+  const books = process.env.NODE_ENV === "development" ? [...serverBooks, ...devBooks] : serverBooks;
   const sideNavWidth = useSideNavWidth();
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
   const totalShelves = Math.max(1, Math.ceil(books.length / BOOKS_PER_SHELF));
@@ -72,6 +105,37 @@ export default function LibraryScreen() {
                 </li>
               ))}
             </ul>
+
+            {shelfState.status !== "loaded" && (
+              <Anchor x={870} y={470} scale={scale} centerX>
+                <div className="flex flex-col items-center gap-[14px] rounded-[24px] bg-white/90 px-[36px] py-[24px] text-center shadow-lg" role="status">
+                  <p className="text-[22px] font-bold text-[#5A4032]">
+                    {shelfState.status === "loading"
+                      ? "책장을 여는 중이에요…"
+                      : shelfState.needsLogin
+                        ? "학생 계정으로 로그인해야 책장을 볼 수 있어요."
+                        : `책장을 불러오지 못했어요. ${shelfState.message}`}
+                  </p>
+                  {shelfState.status === "error" &&
+                    (shelfState.needsLogin ? (
+                      <Link href="/" className="rounded-full bg-[#D9621C] px-[22px] py-[10px] text-[18px] font-bold text-white">
+                        로그인하러 가기
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShelfState({ status: "loading" });
+                          setAttempt((n) => n + 1);
+                        }}
+                        className="cursor-pointer rounded-full bg-[#D9621C] px-[22px] py-[10px] text-[18px] font-bold text-white"
+                      >
+                        다시 불러오기
+                      </button>
+                    ))}
+                </div>
+              </Anchor>
+            )}
 
             {/* 책장 아래 바닥 가운데 */}
             <Anchor x={870} y={842} scale={scale} centerX>
@@ -137,7 +201,8 @@ function BookOnShelf({ book }: { book: CompletedBook }) {
     >
       <div className="absolute inset-0 transition-transform duration-200 group-hover:-translate-y-[14px] group-focus-visible:-translate-y-[14px]">
         <BookCover theme={book.theme} title={book.title} date={book.completedAt}>
-          {book.coverImage && <Image src={book.coverImage} alt="" fill sizes="206px" className="object-contain" />}
+          {/* 표지 그림은 서버 파일 주소라 Next 이미지 최적화를 거치지 않는다 */}
+          {book.coverImage && <Image src={book.coverImage} alt="" fill sizes="206px" className="object-contain" unoptimized />}
         </BookCover>
       </div>
     </button>

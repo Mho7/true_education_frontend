@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import BookCover, { BOOK_WIDTH } from "@/components/library/BookCover";
 import LessonFrame from "@/components/study/lesson/LessonFrame";
+import { errorMessage, isApiError } from "@/lib/api/client";
+import { getToday, saveDrawing } from "@/lib/api/learning";
 import { updateBookDraft, useBookDraft } from "@/lib/bookDraft";
 import { COVER_ART_HEIGHT, COVER_ART_WIDTH } from "@/lib/coverArt";
 import {
@@ -38,7 +40,7 @@ type Phase = "drawing" | "explain";
  * 시안 drawing-session-empty / drawing-session-drawing / drawing-finish-popup.
  * - 왼쪽 큰 칸이 실제 그림 캔버스이고, 그린 그림이 오른쪽 책 표지 그림 칸에 같은 비율로 줄어 실시간으로 보인다.
  * - 첫 "다 했어요"는 확인 팝업만 연다. 팝업이 떠 있어도 캔버스는 그대로 남아 있다.
- * - 팝업의 "다 했어요"를 누르면 그림을 표지 이미지로 저장하고, 같은 주소에서 그림 설명하기(ExplainDrawing)로 넘어간다.
+ * - 팝업의 "다 했어요"를 누르면 그림을 표지 이미지로 만들어 서버에 올리고(POST drawing), 같은 주소에서 그림 설명하기(ExplainDrawing)로 넘어간다.
  * - 초안에 표지 그림이 이미 있으면(설명하기까지 왔다가 새로고침) 처음부터 설명하기로 시작한다.
  * - 초안은 제목 짓기(4단계)에서 만든다. 초안 없이 이 주소로 바로 들어오면 학습 지도로 돌려보낸다.
  */
@@ -56,6 +58,8 @@ export default function DrawingSession() {
   const [color, setColor] = useState(DEFAULT_PEN_COLOR);
   const [strokeActive, setStrokeActive] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   // 저장 공간이 모자라 초안에 표지 그림을 못 넣었을 때를 대비해 이번 화면에서 쓸 사본을 둔다.
   const [savedCoverImage, setSavedCoverImage] = useState<string | null>(null);
   const coverImage = draft?.coverImage ?? savedCoverImage;
@@ -101,16 +105,36 @@ export default function DrawingSession() {
     setActions((prev) => [...prev, { type: "clear" }]);
   }
 
-  const closeConfirm = useCallback(() => setConfirmOpen(false), []);
-
-  const finishDrawing = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const image = createDrawingSnapshot(canvas);
-    updateBookDraft({ coverImage: image });
-    setSavedCoverImage(image);
+  const closeConfirm = useCallback(() => {
     setConfirmOpen(false);
+    setUploadError(null);
   }, []);
+
+  async function finishDrawing() {
+    const canvas = canvasRef.current;
+    if (!canvas || uploading) return;
+    const image = createDrawingSnapshot(canvas);
+    setUploading(true);
+    setUploadError(null);
+    const keepImage = () => {
+      updateBookDraft({ coverImage: image });
+      setSavedCoverImage(image);
+      setConfirmOpen(false);
+    };
+    try {
+      // 예전 초안에는 배정 id가 없어서 오늘의 배정에서 찾는다.
+      const assignmentId = draft?.assignmentId ?? (await getToday()).assignmentId;
+      if (assignmentId === undefined) throw new Error("no assignment");
+      await saveDrawing(assignmentId, await (await fetch(image)).blob());
+      keepImage();
+    } catch (caught) {
+      // 이미 올려서 설명 말하기 단계로 넘어갔다면(새로고침 등) 그대로 이어서 설명하기로 간다.
+      if (isApiError(caught, 409) && (await getToday().catch(() => null))?.stage === "REFLECTION") keepImage();
+      else setUploadError(`그림을 저장하지 못했어요. ${errorMessage(caught)}`);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <LessonFrame title={phase === "drawing" ? "그림 그리기" : "그림 설명하기"} hideTitle>
@@ -199,7 +223,9 @@ export default function DrawingSession() {
             className="pointer-events-none absolute top-[625px] left-[717px] h-[257px] w-[366px] select-none"
           />
 
-          {confirmOpen && <FinishDrawingModal onContinue={closeConfirm} onFinish={finishDrawing} />}
+          {confirmOpen && (
+            <FinishDrawingModal onContinue={closeConfirm} onFinish={() => void finishDrawing()} saving={uploading} error={uploadError} />
+          )}
         </>
       ) : (
         coverImage && <ExplainDrawing draft={draft} coverImage={coverImage} />

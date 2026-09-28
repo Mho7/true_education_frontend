@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { GraduationCapIcon, LockIcon, UserIcon, UsersIcon } from "@/components/auth/icons";
-import { signIn, type MemberRole } from "@/lib/session";
+import { getMe, login } from "@/lib/api/auth";
+import { ApiError, errorMessage } from "@/lib/api/client";
+import { rememberSignedInMember, type MemberRole } from "@/lib/session";
 
 const ROLE_TABS: { value: MemberRole; label: string; Icon: typeof UsersIcon }[] = [
   { value: "student", label: "학생", Icon: GraduationCapIcon },
@@ -18,17 +20,34 @@ export default function LoginForm() {
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!loginId.trim() || !password) {
       setError("아이디와 비밀번호를 입력해 주세요");
       return;
     }
-    // TODO: 인증 API가 준비되면 role과 함께 로그인 요청을 보낸다. 지금은 비밀번호 확인 없이 바로 보낸다.
-    // 학생은 메인(/home, 여울이 방), 보호자는 보호자 대시보드(/guardian)로 간다.
-    signIn(loginId.trim(), role);
-    router.push(role === "guardian" ? "/guardian" : "/home");
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      // 서버가 세션 쿠키를 심는다. 화면에 쓸 이름·학생 코드는 /me로 받아 기억해 둔다.
+      const { role: signedInRole } = await login({ role: role === "guardian" ? "PARENT" : "STUDENT", loginId: loginId.trim(), password });
+      const me = await getMe();
+      const memberRole: MemberRole = signedInRole === "PARENT" ? "guardian" : "student";
+      rememberSignedInMember({
+        loginId: loginId.trim(),
+        name: me.name,
+        role: memberRole,
+        ...(me.studentCode ? { studentCode: me.studentCode } : {}),
+      });
+      // 학생은 메인(/home, 여울이 방), 보호자는 보호자 대시보드(/guardian)로 간다.
+      router.push(memberRole === "guardian" ? "/guardian" : "/home");
+    } catch (caught) {
+      setError(caught instanceof ApiError && caught.status === 401 ? "아이디 또는 비밀번호가 올바르지 않아요" : errorMessage(caught));
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -97,6 +116,7 @@ export default function LoginForm() {
 
       <button
         type="submit"
+        disabled={submitting}
         className="flex h-[70px] w-full cursor-pointer items-center justify-center rounded-full bg-[#8B6650] text-[18px] font-medium text-white shadow-[0_6px_16px_rgba(107,74,54,0.18)] transition hover:brightness-105 active:scale-[0.99]"
       >
         로그인

@@ -1,4 +1,3 @@
-import type { SignupParentRequest, SignupStudentRequest } from "@/lib/api/types";
 import type { MemberRole } from "@/lib/session";
 
 /** 문자열은 문단, 문자열 배열은 글머리표 목록 */
@@ -28,12 +27,6 @@ export type ConsentScreen = {
   submitLabel: string;
   errorText: string;
   items: ConsentItem[];
-};
-
-/** 가입 요청 body에 들어가는 동의 필드 */
-export type SignupAgreements = {
-  student: Pick<SignupStudentRequest, "guardianShareAgreed">;
-  guardian: Pick<SignupParentRequest, "termsAgreed" | "marketingAgreed" | "guardianConsentAgreed">;
 };
 
 // TODO: 실제 서비스 출시 전 정식 이용약관·개인정보 처리방침 문구로 교체한다.
@@ -365,21 +358,9 @@ export function hasRequiredConsents(role: MemberRole, agreedIds: string[]) {
 }
 
 /**
- * 동의 화면에서 체크한 항목을 가입 요청 필드로 옮긴다.
- * - 학생 guardianShareAgreed: "보호자가 내 독서 활동을 볼 수 있다는 것을 확인했어요"
- * - 보호자 termsAgreed: 서비스 이용약관 + 보호자 개인정보 수집·이용
- * - 보호자 guardianConsentAgreed: 만 14세 미만 아동 개인정보 처리에 대한 법정대리인 동의
- * - 보호자 marketingAgreed: 마케팅 정보 수신(선택)
+ * 동의 화면에서 체크한 항목을 가입 요청의 agreements로 옮긴다.
+ * 항목 id는 백엔드 동의 항목 키(common/constants/consent.constants.ts)와 같고, 서버가 항목마다 따로 기록한다.
  */
-export function studentAgreements(agreedIds: string[]): SignupAgreements["student"] {
-  return { guardianShareAgreed: agreedIds.includes("guardianView") };
-}
-
-export function guardianAgreements(agreedIds: string[]): SignupAgreements["guardian"] {
-  const agreed = (id: string) => agreedIds.includes(id);
-  return {
-    termsAgreed: agreed("terms") && agreed("guardianPrivacy"),
-    guardianConsentAgreed: agreed("childPrivacy"),
-    marketingAgreed: agreed("marketing"),
-  };
+export function signupAgreements(role: MemberRole, agreedIds: string[]): string[] {
+  return CONSENT_SCREENS[role].items.filter((item) => agreedIds.includes(item.id)).map((item) => item.id);
 }

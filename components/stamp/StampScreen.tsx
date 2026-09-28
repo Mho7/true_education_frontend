@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import StampDevPanel from "./StampDevPanel";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { Anchor, useElementSize, type Scale } from "@/components/stage/Anchor";
-import { useStampCount } from "@/lib/stamps";
+import { getMyRewards, getMyStamps } from "@/lib/api/student";
+import { useDevStampCount } from "@/lib/stamps";
 import { isRewardStamp } from "@/lib/rewards";
 import RewardModal from "./RewardModal";
 import { RewardStampEmpty, RewardStampFilled } from "./RewardStamp";
@@ -38,8 +39,26 @@ function stampRotation(index: number) {
 }
 
 export default function StampScreen() {
-  // 학습 4단계를 끝내고 보물상자를 열면 도장 1~2개를 받는다.
-  const stampCount = useStampCount();
+  // 책을 완료하면 서버가 도장 1~2개를 적립한다(보물상자는 그 수를 보여 준다). 개발 모드에서는 더미 도장을 더해 보여 준다.
+  const [serverStamps, setServerStamps] = useState<number | null>(null);
+  /** 도장 번호(5, 10, …) → 보호자가 정한 보상 */
+  const [rewards, setRewards] = useState<Record<number, string>>({});
+  const devStamps = useDevStampCount();
+  const stampCount = (serverStamps ?? 0) + (process.env.NODE_ENV === "development" ? devStamps : 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    // 불러오지 못하면(로그인 만료 등) 빈 스탬프판을 보여 준다.
+    getMyStamps()
+      .then(({ total }) => !cancelled && setServerStamps(total))
+      .catch(() => !cancelled && setServerStamps(0));
+    getMyRewards()
+      .then((board) => !cancelled && setRewards(Object.fromEntries(board.rewards.map((reward) => [reward.milestone, reward.name]))))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const sideNavWidth = useSideNavWidth();
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
   const [animateFrom] = useState(() => (typeof window === "undefined" ? 0 : readSeenCount()));
@@ -54,12 +73,14 @@ export default function StampScreen() {
   const closeReward = useCallback(() => setOpenReward(null), []);
 
   useEffect(() => {
+    // 서버 수를 받기 전(0개로 보이는 동안)에는 본 도장 수를 덮어쓰지 않는다.
+    if (serverStamps === null) return;
     try {
       if (stampCount > 0) window.localStorage.setItem(SEEN_KEY, String(stampCount));
     } catch {
       // 저장이 막혀 있으면 다음에도 애니메이션이 한 번 더 나올 뿐이다.
     }
-  }, [stampCount]);
+  }, [stampCount, serverStamps]);
 
   const scale: Scale | null = stageSize
     ? { x: stageSize.width / STAGE_WIDTH, y: stageSize.height / STAGE_HEIGHT }
@@ -81,7 +102,7 @@ export default function StampScreen() {
         />
         <h1 className="sr-only">나의 스탬프</h1>
 
-        {scale && (
+        {scale && serverStamps !== null && (
           <>
 
             <ol aria-label={`스탬프 ${stampCount}개`}>
@@ -178,7 +199,12 @@ export default function StampScreen() {
           </>
         )}
 
-        <RewardModal stampNumber={openReward} stampCount={stampCount} onClose={closeReward} />
+        <RewardModal
+          stampNumber={openReward}
+          stampCount={stampCount}
+          rewardName={openReward === null ? undefined : rewards[openReward]}
+          onClose={closeReward}
+        />
         <StampDevPanel />
       </div>
     </main>

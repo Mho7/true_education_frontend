@@ -1,7 +1,8 @@
 "use client";
 
-// 브라우저 음성 기능. 여울이가 읽어 주는 소리(음성 합성)와 아이가 읽는 소리 듣기(음성 인식).
-// TODO: 여울이 목소리 녹음 파일이나 서버 음성 합성·발음 평가가 준비되면 교체한다.
+import { getLineAudioUrl } from "@/lib/api/tts";
+
+// 여울이가 읽어 주는 소리(서버 Typecast 음성 또는 브라우저 음성 합성)와 아이가 읽는 소리 듣기(브라우저 음성 인식).
 
 /** 문장 길이로 어림한 읽는 시간 (음성 합성이 없거나 끝 신호가 안 올 때 대비) */
 function estimateMs(text: string) {
@@ -117,7 +118,52 @@ export function listen(onEnd: (transcript: string) => void): { done: () => void;
   };
 }
 
+let currentAudio: HTMLAudioElement | null = null;
+
+/**
+ * 여울이 차례 줄을 읽는다. 서버 음성(lib/api/tts 스위치가 켜져 있을 때)을 재생하고,
+ * 스위치가 꺼져 있거나 음성을 못 받으면(503 등)·재생에 실패하면 브라우저 음성 합성으로 대신 읽는다.
+ * 다 읽으면 onEnd. 돌려받은 함수를 부르면 멈춘다.
+ */
+export function speakLine(line: { bookId: number; lineId: string; text: string }, onEnd?: () => void): () => void {
+  let stopped = false;
+  let stopFallback: (() => void) | null = null;
+  let audio: HTMLAudioElement | null = null;
+  const fallback = () => {
+    if (!stopped && !stopFallback) stopFallback = speak(line.text, onEnd);
+  };
+
+  getLineAudioUrl(line.bookId, line.lineId).then((url) => {
+    if (stopped) return;
+    if (!url) {
+      fallback();
+      return;
+    }
+    window.speechSynthesis?.cancel();
+    currentAudio?.pause();
+    audio = new Audio(url);
+    currentAudio = audio;
+    audio.onended = () => {
+      if (!stopped) onEnd?.();
+    };
+    audio.onerror = fallback;
+    audio.play().catch(fallback);
+  });
+
+  return () => {
+    stopped = true;
+    stopFallback?.();
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+    }
+  };
+}
+
 /** 여울이가 말하던 것을 멈춘다 (페이지를 떠날 때) */
 export function stopSpeaking() {
   window.speechSynthesis?.cancel();
+  currentAudio?.pause();
+  currentAudio = null;
 }

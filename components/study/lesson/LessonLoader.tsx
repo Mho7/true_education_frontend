@@ -1,0 +1,138 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState, type ReactNode } from "react";
+import { errorMessage, isApiError } from "@/lib/api/client";
+import { getOrdering, getQuestions, getReading, getToday } from "@/lib/api/learning";
+import type { ComprehensionQuestion, OrderingResponse, ReadingResponse, TodayResponse } from "@/lib/api/types";
+import { LESSON_COUNT } from "@/lib/studyLessons";
+import ComprehensionLesson from "./ComprehensionLesson";
+import LessonFrame from "./LessonFrame";
+import ReadingLesson from "./ReadingLesson";
+import SequenceLesson from "./SequenceLesson";
+import TitleLesson from "./TitleLesson";
+
+/*
+ * TODO(#5 백엔드 패치): 학습 페이지의 서버 데이터 로딩으로 바뀌면 이 파일은 통째로 빠진다.
+ * 그 전까지 브라우저에서 오늘의 배정(GET /sessions/today)과 단계 데이터를 불러 각 단계 화면에 넘긴다.
+ * 단계 화면은 API 응답 객체만 props로 받으므로 로딩 방식이 바뀌어도 그대로 쓸 수 있다.
+ */
+
+export type LoadedStep = 1 | 2 | 3 | 4;
+
+const TITLES: Record<LoadedStep, string> = { 1: "번갈아 읽기", 2: "이해 질문", 3: "순서 맞추기", 4: "제목 짓기" };
+
+/** 제목 짓기보다 앞 단계 */
+const BEFORE_TITLE = new Set(["READING", "QUESTION", "ORDERING"]);
+
+type Loaded =
+  | { step: 1; assignmentId: number; bookId: number; bookTitle: string; reading: ReadingResponse }
+  | { step: 2; assignmentId: number; questions: ComprehensionQuestion[] }
+  | { step: 3; assignmentId: number; ordering: OrderingResponse }
+  | { step: 4; assignmentId: number; originalTitle: string };
+
+type State =
+  | { status: "loading" }
+  | { status: "loaded"; data: Loaded }
+  | { status: "blocked"; message: string; action: { href: string; label: string } }
+  | { status: "error"; message: string };
+
+async function load(step: LoadedStep): Promise<Exclude<State, { status: "loading" }>> {
+  const today: TodayResponse = await getToday();
+  if (today.type === "DONE") {
+    return { status: "blocked", message: "오늘 읽을 책을 다 읽었어요. 내일 또 만나요!", action: { href: "/home", label: "여울이 방으로" } };
+  }
+  if (today.type === "NO_BOOK" || today.assignmentId === undefined || !today.book) {
+    return { status: "blocked", message: "지금은 읽을 책이 없어요.", action: { href: "/home", label: "여울이 방으로" } };
+  }
+  const { assignmentId, book } = today;
+  if (step === 2) return { status: "loaded", data: { step, assignmentId, questions: await getQuestions(assignmentId) } };
+  if (step === 3) return { status: "loaded", data: { step, assignmentId, ordering: await getOrdering(assignmentId) } };
+  if (step === 4) {
+    // 제목 짓기는 따로 불러올 데이터가 없어서 오늘의 배정 단계로 차례인지 확인한다.
+    if (today.stage && BEFORE_TITLE.has(today.stage)) {
+      return { status: "blocked", message: "아직 이 단계를 할 차례가 아니에요.", action: { href: "/study", label: "학습 지도로" } };
+    }
+    if (today.stage !== "TITLE") {
+      return { status: "blocked", message: "제목은 이미 지었어요. 보물상자에서 표지를 그려 볼까요?", action: { href: "/study", label: "학습 지도로" } };
+    }
+    return { status: "loaded", data: { step, assignmentId, originalTitle: book.title } };
+  }
+  return { status: "loaded", data: { step, assignmentId, bookId: book.id, bookTitle: book.title, reading: await getReading(assignmentId) } };
+}
+
+export default function LessonLoader({ step }: { step: LoadedStep }) {
+  const [state, setState] = useState<State>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    load(step)
+      .then((result) => {
+        if (!cancelled) setState(result);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (isApiError(error, 401) || isApiError(error, 403)) {
+          setState({ status: "blocked", message: "학생 계정으로 로그인해야 해요.", action: { href: "/", label: "로그인하러 가기" } });
+        } else if (isApiError(error, 409)) {
+          setState({ status: "blocked", message: "아직 이 단계를 할 차례가 아니에요.", action: { href: "/study", label: "학습 지도로" } });
+        } else {
+          setState({ status: "error", message: errorMessage(error) });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, attempt]);
+
+  if (state.status === "loaded") {
+    const { data } = state;
+    if (data.step === 2) return <ComprehensionLesson assignmentId={data.assignmentId} questions={data.questions} />;
+    if (data.step === 3) return <SequenceLesson assignmentId={data.assignmentId} ordering={data.ordering} />;
+    if (data.step === 4) return <TitleLesson assignmentId={data.assignmentId} originalTitle={data.originalTitle} />;
+    return <ReadingLesson assignmentId={data.assignmentId} bookId={data.bookId} bookTitle={data.bookTitle} reading={data.reading} />;
+  }
+
+  const retry = () => {
+    setState({ status: "loading" });
+    setAttempt((n) => n + 1);
+  };
+
+  return (
+    <LessonFrame title={TITLES[step]} progress={{ current: step, total: LESSON_COUNT }}>
+      <div className="absolute inset-x-0 top-[300px] flex flex-col items-center gap-[28px] text-center" aria-live="polite">
+        {state.status === "loading" ? (
+          <p className="text-[26px] font-bold text-[#857B72]">여울이가 책을 펼치고 있어요…</p>
+        ) : (
+          <>
+            <p className="max-w-[760px] text-[28px] leading-[40px] font-bold break-keep text-[#2B2420]">{state.message}</p>
+            {state.status === "blocked" ? (
+              <LoaderAction href={state.action.href}>{state.action.label}</LoaderAction>
+            ) : (
+              <LoaderAction onClick={retry}>다시 불러오기</LoaderAction>
+            )}
+          </>
+        )}
+      </div>
+    </LessonFrame>
+  );
+}
+
+const actionClassName =
+  "flex h-[76px] w-[280px] cursor-pointer items-center justify-center rounded-full bg-[#D9621C] text-[24px] font-bold text-white transition hover:brightness-105 active:scale-[0.98]";
+
+function LoaderAction({ href, onClick, children }: { href?: string; onClick?: () => void; children: ReactNode }) {
+  if (href) {
+    return (
+      <Link href={href} className={actionClassName}>
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={actionClassName}>
+      {children}
+    </button>
+  );
+}

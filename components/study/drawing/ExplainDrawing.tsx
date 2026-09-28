@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import BookCover, { BOOK_WIDTH } from "@/components/library/BookCover";
 import { useSpeechTranscriber, type SpeechTranscriberError } from "@/hooks/useSpeechTranscriber";
+import { errorMessage, isApiError } from "@/lib/api/client";
+import { getToday, saveReflection } from "@/lib/api/learning";
 import { clearBookDraft, updateBookDraft, type BookDraft, type BookExplanation } from "@/lib/bookDraft";
-import { addCompletedBook } from "@/lib/bookshelf";
+import { rememberBookTheme } from "@/lib/bookshelf";
+import { rememberEarnedStamps } from "@/lib/stamps";
 import { markTreasureRewardPending } from "@/lib/studyProgress";
 
 /** 녹음은 최대 이만큼만 하고 저절로 멈춘다 (안전장치) */
@@ -65,7 +68,8 @@ export default function ExplainDrawing({ draft, coverImage }: ExplainDrawingProp
   const [result, setResult] = useState<BookExplanation | null>(saved ?? null);
   /** "완성하기"를 눌러 책장에 꽂고 학습 지도로 돌아가는 중 */
   const [finishing, setFinishing] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
+  /** 저장하지 못했을 때 안내 */
+  const [saveError, setSaveError] = useState<string | null>(null);
   const finishingRef = useRef(false);
 
   const recordingStartRef = useRef(0);
@@ -117,22 +121,39 @@ export default function ExplainDrawing({ draft, coverImage }: ExplainDrawingProp
   }, [view, stopping, finishRecording]);
 
   /**
-   * 책을 완성한다: 이야기를 초안에 남기고 → 책장에 꽂고(같은 초안 id는 한 번만) → 보물상자를 열 차례라고 기록한 뒤
-   * → 초안을 지우고 학습 지도로 돌아간다. 스탬프는 학습 지도에서 보물상자를 열 때 받는다.
+   * 책을 완성한다: 설명을 서버에 저장하면(POST reflection) 서버가 책을 완료하고 책장에 꽂고 스탬프를 적립한다.
+   * 그 뒤 보물상자를 열 차례라고 기록하고 → 초안을 지우고 학습 지도로 돌아간다. 보물상자는 서버가 정한 스탬프 수를 보여 준다.
    */
-  function complete() {
+  async function complete() {
     if (!result?.transcript || finishingRef.current) return;
     finishingRef.current = true;
     setFinishing(true);
+    setSaveError(null);
     updateBookDraft({ explanation: result });
-    const book = addCompletedBook({ id: draft.id, title: draft.title, theme: draft.theme, coverImage, explanation: result });
-    if (!book) {
-      // 저장 공간이 모자라 책장에 못 꽂았다. 보물상자를 열 차례로 넘기지 않고 다시 시도할 수 있게 둔다.
-      finishingRef.current = false;
-      setFinishing(false);
-      setSaveFailed(true);
-      return;
+
+    let assignmentId = draft.assignmentId;
+    let stampsEarned: number | undefined;
+    try {
+      // 예전 초안에는 배정 id가 없어서 오늘의 배정에서 찾는다.
+      assignmentId ??= (await getToday()).assignmentId;
+      if (assignmentId === undefined) throw new Error("no assignment");
+      stampsEarned = (await saveReflection(assignmentId, result)).stampsEarned;
+    } catch (caught) {
+      // 이미 완료했다면(두 번 누르기·새로고침) 오늘의 배정에 남은 결과로 이어 간다.
+      const today = isApiError(caught, 409) ? await getToday().catch(() => null) : null;
+      if (today?.type === "DONE") {
+        assignmentId ??= today.completedBook?.assignmentId;
+        stampsEarned = today.stampsEarned;
+      } else {
+        finishingRef.current = false;
+        setFinishing(false);
+        setSaveError(isApiError(caught, 422) ? "이야기를 잘 듣지 못했어요. 다시 말해볼까요?" : `책을 저장하지 못했어요. ${errorMessage(caught)}`);
+        return;
+      }
     }
+
+    if (assignmentId !== undefined) rememberBookTheme(assignmentId, draft.theme);
+    rememberEarnedStamps(stampsEarned);
     markTreasureRewardPending();
     // 뒤로 가기로 다 만든 그리기 화면에 돌아오지 않도록 기록을 바꿔 치운다.
     router.replace("/study");
@@ -173,9 +194,9 @@ export default function ExplainDrawing({ draft, coverImage }: ExplainDrawingProp
           <ReviewPanel
             transcript={result?.transcript ?? ""}
             finishing={finishing}
-            saveFailed={saveFailed}
+            saveError={saveError}
             onRetry={() => void startRecording()}
-            onComplete={complete}
+            onComplete={() => void complete()}
           />
         )}
       </div>
@@ -251,13 +272,13 @@ function RecordingPanel({ elapsedMs, stopping, onStop }: { elapsedMs: number; st
 function ReviewPanel({
   transcript,
   finishing,
-  saveFailed,
+  saveError,
   onRetry,
   onComplete,
 }: {
   transcript: string;
   finishing: boolean;
-  saveFailed: boolean;
+  saveError: string | null;
   onRetry: () => void;
   onComplete: () => void;
 }) {
@@ -276,9 +297,9 @@ function ReviewPanel({
         )}
       </div>
 
-      {saveFailed && (
-        <p role="alert" className="absolute top-[695px] right-0 text-[13px] leading-[20px] font-bold text-[#C9602C]">
-          책을 저장하지 못했어요. 다시 눌러주세요.
+      {saveError && (
+        <p role="alert" className="absolute top-[695px] right-0 max-w-full text-right text-[13px] leading-[20px] font-bold break-keep text-[#C9602C]">
+          {saveError}
         </p>
       )}
       <div className="absolute top-[623px] right-0 flex items-center gap-[16px]">

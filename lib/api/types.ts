@@ -14,21 +14,17 @@ type SignupBaseRequest = {
 
 export type SignupStudentRequest = SignupBaseRequest & {
   age?: number;
-  /** 학습 내용 보호자 전달 동의(필수). false면 400 */
-  guardianShareAgreed: boolean;
+  /** 동의한 항목 id(activityRecord·speechToText·guardianView 모두 필수). 빠지면 400 */
+  agreements: string[];
 };
 
 export type SignupStudentResponse = { id: number; studentCode: string };
 
 export type SignupParentRequest = SignupBaseRequest & {
-  /** 학생 가입 시 발급된 6자리 코드(대소문자 구분) */
+  /** 학생 가입 시 발급된 6자리 코드(대소문자 구분). 없는 코드면 404 */
   studentCode: string;
-  /** 이용약관·개인정보 처리방침 동의(필수) */
-  termsAgreed: boolean;
-  /** 마케팅 정보 수신 동의(선택) */
-  marketingAgreed: boolean;
-  /** 자녀 개인정보 수집·이용 동의(법정대리인, 필수) */
-  guardianConsentAgreed: boolean;
+  /** 동의한 항목 id. marketing만 선택이고 나머지(terms·guardianPrivacy·childPrivacy·childSpeech·guardianDashboard)는 필수 */
+  agreements: string[];
 };
 
 export type SignupParentResponse = { id: number };
@@ -143,11 +139,8 @@ export type DashboardResponse = {
     transcript: string;
     durationMs: number;
     completedAt: string;
-    /**
-     * 아이가 그린 표지 그림 주소.
-     * TODO(백엔드 요청): 아직 응답에 없다. 추가되면 보호자 화면이 그대로 그림을 보여 준다(없으면 색 칸).
-     */
-    coverImageUrl?: string | null;
+    /** 아이가 그린 표지 그림 주소(없으면 null) */
+    coverImageUrl: string | null;
   }[];
 };
 
@@ -160,10 +153,7 @@ export type RewardBoardResponse = {
     milestone: number;
     name: string;
     achieved: boolean;
-    /**
-     * 보호자가 아이에게 리워드를 전하고 "선물했어요"를 누른 시각(ISO). 아직 안 줬으면 null.
-     * TODO(백엔드 요청): 아직 응답에 없다. ParentReward.givenAt과 전달 처리·취소 API가 생기면 그대로 쓴다.
-     */
+    /** 보호자가 아이에게 리워드를 전하고 "선물했어요"를 누른 시각(ISO). 아직 안 줬으면 null */
     givenAt: string | null;
   }[];
   /** 아직 달성하지 않은 가장 작은 목표치 */
@@ -226,6 +216,8 @@ export type OrderingResponse = {
     correct?: boolean;
     /** 끝났을 때만: 정답 순서(카드 id) */
     answer?: string[];
+    /** 2번 틀리고 아직 안 끝났을 때만: 이어하기용 힌트(가장 먼저 일어난 일) */
+    hint?: string;
   };
 };
 
@@ -242,7 +234,7 @@ export type OrderingAttemptResponse = {
   finished: boolean;
   remaining?: number;
   answer?: string[];
-  /** 팀이 "첫 사건 힌트 유지"로 정하면 백엔드가 오답 응답에 넣어 줄 예정 */
+  /** 2번째 오답(기회가 남았을 때): 가장 먼저 일어난 일 */
   hint?: string;
   stage: LearningStage;
 };

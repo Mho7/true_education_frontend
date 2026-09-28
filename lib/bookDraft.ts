@@ -8,6 +8,8 @@ export type { BookExplanation };
 /** 만들고 있는 책 한 권. 제목 짓기 → 그리기 → 그림 설명하기 → 책장에 꽂기까지 같은 초안을 이어서 쓴다. */
 export type BookDraft = {
   id: string;
+  /** 서버 배정 id. 표지 그림·설명 말하기를 이 배정에 저장한다 (예전 초안에는 없을 수 있다) */
+  assignmentId?: number;
   title: string;
   /** 처음 만들 때 한 번만 무작위로 고르고, 다 만들 때까지 바꾸지 않는다 */
   theme: BookTheme;
@@ -146,9 +148,10 @@ export function clearRoundTheme() {
  * 새 책을 시작한다. 남아 있던 초안이 있어도 버리고 새로 만든다. 표지 색은 소개에서 정해 둔 이번 바퀴 색을 쓰고,
  * 없으면(소개를 건너뛴 경우) 여기서 한 번만 무작위로 고른다. 렌더 중이 아니라 이벤트에서 부른다.
  */
-export function startBookDraft(title: string): BookDraft {
+export function startBookDraft(title: string, assignmentId?: number): BookDraft {
   const draft: BookDraft = {
     id: newId(),
+    assignmentId,
     title,
     theme: readRoundTheme() ?? randomTheme(),
     startedAt: new Date().toISOString(),
