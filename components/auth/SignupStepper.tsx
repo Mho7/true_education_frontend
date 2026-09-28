@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { CheckIcon } from "@/components/auth/icons";
 
-const STEPS = ["유형 선택", "정보 입력", "가입 완료"];
+const STEPS = ["유형 선택", "약관 동의", "정보 입력", "가입 완료"];
 
 type SignupStepperProps = {
   /** 0부터 시작하는 현재 단계 */
@@ -10,14 +10,14 @@ type SignupStepperProps = {
 
 export default function SignupStepper({ current }: SignupStepperProps) {
   return (
-    <ol className="flex items-center justify-center gap-[10px]" aria-label="회원가입 단계">
+    <ol className="flex items-center justify-center gap-[8px]" aria-label="회원가입 단계">
       {STEPS.map((label, index) => {
         const done = index < current;
         const active = index === current;
         return (
           <Fragment key={label}>
             {index > 0 && (
-              <li aria-hidden className={`h-[1.5px] w-[26px] ${index <= current ? "bg-[#B89A84]" : "bg-[#DCD4CB]"}`} />
+              <li aria-hidden className={`h-[1.5px] w-[16px] ${index <= current ? "bg-[#B89A84]" : "bg-[#DCD4CB]"}`} />
             )}
             <li
               aria-current={active ? "step" : undefined}
