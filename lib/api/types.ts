@@ -102,6 +102,9 @@ export type SaveReadingPageResponse = {
 /** GET /parents/me/students */
 export type LinkedStudent = { studentId: number; name: string };
 
+/** 보호자가 학생 코드로 보낸 연결 요청 중 아이가 아직 수락하지 않은 것. 수락 전에는 아이 이름을 알려 주지 않는다 */
+export type LinkRequest = { requestId: number; studentCode: string; requestedAt: string };
+
 export type DashboardStage = "WHO" | "WHAT" | "WHY" | "EMOTION" | "ORDER";
 
 /** COLLECTING: 판정 전 / NEEDS_HELP: 도움 필요 / COMFORTABLE: 잘함 / NORMAL: 보통 */

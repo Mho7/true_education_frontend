@@ -1,8 +1,10 @@
 // ⚠ 이 브랜치(main 기준)에는 백엔드 연동이 없어서 보호자 API를 예시 데이터로 흉내 낸다.
 // 함수 이름·응답 모양은 실제 API(feat/api-ready-ui의 같은 파일)와 같다. 두 브랜치를 합칠 때는 그쪽 파일을 쓴다.
 
+import { addLinkRequest, listLinkRequests, removeLinkRequest } from "@/lib/linkRequests";
+import { getCurrentMember } from "@/lib/session";
 import { ApiError } from "./client";
-import type { DashboardResponse, LinkedStudent, RewardBoardResponse, SetRewardRequest } from "./types";
+import type { DashboardResponse, LinkedStudent, LinkRequest, RewardBoardResponse, SetRewardRequest } from "./types";
 
 const STAMPS_PER_REWARD = 5;
 const SAMPLE_STAMP_TOTAL = 6;
@@ -80,14 +82,60 @@ function rewardBoard(): RewardBoardResponse {
   };
 }
 
+/** 이 보호자가 보낸 연결 요청 (보호자·학생이 같은 브라우저에 저장된 요청을 나눠 본다) */
+function myLinkRequests() {
+  const loginId = getCurrentMember()?.loginId ?? "";
+  return listLinkRequests().filter((request) => request.guardianLoginId === loginId);
+}
+
+/** 예시 아이 + 이 보호자의 요청을 아이가 수락해 연결된 아이 */
+function linkedStudents(): LinkedStudent[] {
+  const accepted = myLinkRequests().flatMap((request) =>
+    request.status === "ACCEPTED" && request.studentId ? [{ studentId: request.studentId, name: request.studentName ?? "" }] : [],
+  );
+  return [...SAMPLE_STUDENTS, ...accepted];
+}
+
 function findStudent(studentId: number) {
-  const student = SAMPLE_STUDENTS.find((s) => s.studentId === studentId);
+  const student = linkedStudents().find((s) => s.studentId === studentId);
   if (!student) throw new ApiError(403, "연결되지 않은 학생이에요.");
   return student;
 }
 
 export function getLinkedStudents() {
-  return respond(SAMPLE_STUDENTS);
+  return respond(linkedStudents());
+}
+
+/** 아이가 아직 수락하지 않은 연결 요청 (GET /parents/me/link-requests) */
+export function getLinkRequests() {
+  return respond<LinkRequest[]>(
+    myLinkRequests()
+      .filter((request) => request.status === "PENDING")
+      .map(({ id, studentCode, requestedAt }) => ({ requestId: id, studentCode, requestedAt })),
+  );
+}
+
+/**
+ * 학생 코드로 연결을 요청한다 (POST /parents/me/link-requests). 아이가 설정에서 수락해야 연결된다.
+ * 이미 연결됐거나 요청해 둔 코드는 409. 예시에서는 없는 코드도 받아 두고 대기로 남긴다(실제 API는 404).
+ */
+export async function requestStudentLink(studentCode: string) {
+  // 학생 코드는 대소문자를 구분하므로 앞뒤 공백만 지운다.
+  const code = studentCode.trim();
+  if (!code) throw new ApiError(400, "학생 코드를 입력해 주세요.");
+  const existing = myLinkRequests().find((request) => request.studentCode === code);
+  if (existing) throw new ApiError(409, existing.status === "ACCEPTED" ? "이미 연결된 아이예요." : "이미 연결을 요청한 코드예요.");
+  const guardian = getCurrentMember();
+  const saved = addLinkRequest({ guardianLoginId: guardian?.loginId ?? "", guardianName: guardian?.name || "보호자", studentCode: code });
+  return respond<LinkRequest>({ requestId: saved.id, studentCode: saved.studentCode, requestedAt: saved.requestedAt });
+}
+
+/** 아이가 수락하기 전의 요청을 취소한다 (DELETE /parents/me/link-requests/:requestId) */
+export async function cancelLinkRequest(requestId: number) {
+  const request = myLinkRequests().find((r) => r.id === requestId && r.status === "PENDING");
+  if (!request) throw new ApiError(404, "이미 처리된 요청이에요.");
+  removeLinkRequest(requestId);
+  return respond(undefined);
 }
 
 export async function getDashboard(studentId: number) {

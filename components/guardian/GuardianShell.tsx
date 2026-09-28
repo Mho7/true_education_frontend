@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { getLinkedStudents } from "@/lib/api/parents";
 import type { LinkedStudent } from "@/lib/api/types";
@@ -17,6 +18,15 @@ type GuardianContext = {
 
 const Context = createContext<GuardianContext | null>(null);
 
+/** 연결된 아이가 없어도 쓸 수 있는 목록 (계정 관리에서 아이를 추가할 때) */
+const StudentsContext = createContext<{ students: LinkedStudent[]; reload: () => void } | null>(null);
+
+export function useLinkedStudents() {
+  const value = useContext(StudentsContext);
+  if (!value) throw new Error("useLinkedStudents는 GuardianShell 안에서만 쓸 수 있어요.");
+  return value;
+}
+
 /** 보호자 페이지 안에서 지금 고른 아이 (GuardianShell 안에서만 쓴다) */
 export function useGuardian(): GuardianContext {
   const value = useContext(Context);
@@ -31,6 +41,8 @@ export function useGuardian(): GuardianContext {
 export default function GuardianShell({ children }: { children: ReactNode }) {
   const [students, reload] = useLoad(getLinkedStudents, "students");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // 아이는 계정 관리에서 학생 코드로 추가하므로, 연결된 아이가 없어도 계정 관리는 열어 둔다.
+  const isAccountPage = usePathname().startsWith("/guardian/account");
 
   let content: ReactNode;
   if (students.status === "loading") content = <ShellMessage>연결된 아이를 불러오는 중…</ShellMessage>;
@@ -43,10 +55,18 @@ export default function GuardianShell({ children }: { children: ReactNode }) {
   } else {
     const list = students.data;
     const child = list.find((s) => s.studentId === selectedId) ?? list[0];
-    content = child ? (
-      <Context value={{ students: list, child, selectChild: setSelectedId }}>{children}</Context>
-    ) : (
-      <ShellMessage>연결된 아이가 없어요. 아이가 가입하고 받은 학생 코드로 연결할 수 있어요.</ShellMessage>
+    content = (
+      <StudentsContext value={{ students: list, reload }}>
+        {child ? (
+          <Context value={{ students: list, child, selectChild: setSelectedId }}>{children}</Context>
+        ) : isAccountPage ? (
+          children
+        ) : (
+          <ShellMessage action={<ActionLink href="/guardian/account">아이 추가하러 가기</ActionLink>}>
+            연결된 아이가 없어요. 계정 관리에서 아이의 학생 코드로 연결을 요청해 주세요.
+          </ShellMessage>
+        )}
+      </StudentsContext>
     );
   }
 
@@ -68,8 +88,9 @@ function ShellMessage({ children, action }: { children: ReactNode; action?: Reac
 
 /** 아이가 여럿일 때만 보이는 아이 고르기 탭 */
 export function ChildPicker() {
-  const { students, child, selectChild } = useGuardian();
-  if (students.length < 2) return null;
+  const guardian = useContext(Context);
+  if (!guardian || guardian.students.length < 2) return null;
+  const { students, child, selectChild } = guardian;
   return (
     <div role="tablist" aria-label="아이 선택" className="mb-[16px] flex shrink-0 flex-wrap gap-[8px]">
       {students.map((student) => {
@@ -95,13 +116,14 @@ export function ChildPicker() {
 
 /** 홈 외 페이지 공통 머리글 + 본문 폭 (스크롤하는 페이지) */
 export function GuardianPage({ title, description, actions, children }: { title: string; description: string; actions?: ReactNode; children: ReactNode }) {
-  const { child } = useGuardian();
+  // 계정 관리는 연결된 아이가 없어도 열리므로 아이 이름은 있을 때만 쓴다.
+  const child = useContext(Context)?.child;
   return (
     <div className="@container mx-auto w-full max-w-[1120px] px-[16px] pt-[20px] pb-[48px] lg:px-[48px] lg:pt-[44px]">
       <ChildPicker />
       <header className="mb-[24px] flex flex-wrap items-end justify-between gap-[16px]">
         <div>
-          <p className="text-[15px] font-medium text-[#8A909C]">{child.name}</p>
+          {child && <p className="text-[15px] font-medium text-[#8A909C]">{child.name}</p>}
           <h1 className="mt-[4px] text-[34px] leading-[44px] font-bold tracking-[-0.02em] max-sm:text-[26px] max-sm:leading-[34px]">{title}</h1>
           <p className="mt-[6px] text-[15px] break-keep text-[#6B7280]">{description}</p>
         </div>

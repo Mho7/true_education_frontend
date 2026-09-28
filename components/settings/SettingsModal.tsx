@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { acceptLinkRequest, removeLinkRequest, usePendingLinkRequests } from "@/lib/linkRequests";
 import { signOut, useCurrentMember } from "@/lib/session";
 
 type SettingsModalProps = {
@@ -67,7 +68,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative w-[440px] max-w-full rounded-[24px] border border-white/90 bg-white/[0.92] px-[40px] pt-[34px] pb-[32px] shadow-[0_20px_50px_rgba(140,106,79,0.18)] backdrop-blur-[12px]"
+        className="relative max-h-[calc(100vh-32px)] w-[440px] max-w-full overflow-y-auto rounded-[24px] border border-white/90 bg-white/[0.92] px-[40px] pt-[34px] pb-[32px] shadow-[0_20px_50px_rgba(140,106,79,0.18)] backdrop-blur-[12px]"
       >
         <button
           ref={closeButtonRef}
@@ -97,28 +98,29 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
               {member?.name || <span className="text-[#8F8983]">회원가입 정보가 없어요</span>}
             </dd>
           </div>
-          <div>
-            <dt className="text-[14px] leading-[20px] font-medium text-[#6B5446]">
-              {isGuardian ? "연결된 학생 코드" : "학생 코드"}
-            </dt>
-            <dd className="mt-[6px] flex gap-[10px]">
-              <span className="flex h-[50px] min-w-0 flex-1 items-center rounded-[12px] bg-[#EFEBE6] px-[18px] text-[17px] font-bold tracking-[0.2em] text-[#5A4032]">
-                {studentCode ?? <span className="text-[15px] font-normal tracking-normal text-[#8F8983]">아직 없어요</span>}
-              </span>
-              <button
-                type="button"
-                onClick={handleCopy}
-                disabled={!studentCode}
-                className="h-[50px] w-[90px] shrink-0 cursor-pointer rounded-[12px] border-[1.2px] border-[#D9CFC4] text-[14px] font-medium text-[#7A5A45] transition hover:bg-[#FBF4EC] disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
-              >
-                {copied ? "복사됨!" : "복사"}
-              </button>
-            </dd>
-            {!isGuardian && (
-              <p className="mt-[6px] text-[12px] text-[#8A7F76]">보호자가 가입할 때 이 코드를 입력하면 연결돼요</p>
-            )}
-          </div>
+          {/* 보호자는 학생 코드가 없다 (아이는 보호자 대시보드의 계정 관리에서 추가한다) */}
+          {!isGuardian && (
+            <div>
+              <dt className="text-[14px] leading-[20px] font-medium text-[#6B5446]">학생 코드</dt>
+              <dd className="mt-[6px] flex gap-[10px]">
+                <span className="flex h-[50px] min-w-0 flex-1 items-center rounded-[12px] bg-[#EFEBE6] px-[18px] text-[17px] font-bold tracking-[0.2em] text-[#5A4032]">
+                  {studentCode ?? <span className="text-[15px] font-normal tracking-normal text-[#8F8983]">아직 없어요</span>}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  disabled={!studentCode}
+                  className="h-[50px] w-[90px] shrink-0 cursor-pointer rounded-[12px] border-[1.2px] border-[#D9CFC4] text-[14px] font-medium text-[#7A5A45] transition hover:bg-[#FBF4EC] disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  {copied ? "복사됨!" : "복사"}
+                </button>
+              </dd>
+              <p className="mt-[6px] text-[12px] text-[#8A7F76]">보호자가 이 코드로 연결을 요청하면 아래에서 수락할 수 있어요</p>
+            </div>
+          )}
         </dl>
+
+        {!isGuardian && <LinkRequests studentCode={studentCode} studentName={member?.name ?? ""} />}
 
         <button
           type="button"
@@ -129,5 +131,57 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** 보호자가 학생 코드로 보낸 연결 요청. 수락해야 보호자 대시보드에 이 아이가 보인다 */
+function LinkRequests({ studentCode, studentName }: { studentCode: string | undefined; studentName: string }) {
+  const requests = usePendingLinkRequests(studentCode);
+  const headingId = useId();
+  const [acceptedName, setAcceptedName] = useState<string | null>(null);
+
+  return (
+    <section aria-labelledby={headingId} className="mt-[14px]">
+      <h3 id={headingId} className="flex items-center gap-[6px] text-[14px] leading-[20px] font-medium text-[#6B5446]">
+        보호자 연결 요청
+        {requests.length > 0 && (
+          <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#E5484D] px-[6px] text-[12px] font-bold text-white">
+            {requests.length}
+          </span>
+        )}
+      </h3>
+      {requests.length === 0 ? (
+        <p className="mt-[6px] flex min-h-[50px] items-center rounded-[12px] bg-[#EFEBE6] px-[18px] text-[14px] text-[#8F8983]">
+          {acceptedName ? `${acceptedName}님과 연결됐어요!` : "새로 온 요청이 없어요"}
+        </p>
+      ) : (
+        <ul className="mt-[6px] flex flex-col gap-[8px]">
+          {requests.map((request) => (
+            <li key={request.id} className="flex items-center gap-[10px] rounded-[12px] border border-[#F3DFC9] bg-[#FBF4EC] py-[10px] pr-[10px] pl-[16px]">
+              <p className="min-w-0 flex-1 text-[14px] leading-[20px] break-keep text-[#5A4032]">
+                <strong>{request.guardianName}</strong>님이 보호자로 연결하고 싶어 해요
+              </p>
+              <button
+                type="button"
+                onClick={() => removeLinkRequest(request.id)}
+                className="h-[38px] shrink-0 cursor-pointer rounded-full border-[1.2px] border-[#D9CFC4] px-[14px] text-[14px] font-medium text-[#7A5A45] transition hover:bg-white"
+              >
+                거절
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  acceptLinkRequest(request.id, studentName);
+                  setAcceptedName(request.guardianName);
+                }}
+                className="h-[38px] shrink-0 cursor-pointer rounded-full bg-[#E87B3D] px-[16px] text-[14px] font-medium text-white transition hover:brightness-105"
+              >
+                수락
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

@@ -279,7 +279,7 @@ function ConsentStep({
 const MIN_AGE = 3;
 const MAX_AGE = 19;
 
-type InfoErrors = Partial<Record<"name" | "age" | "loginId" | "password" | "passwordConfirm" | "studentCode", string>>;
+type InfoErrors = Partial<Record<"name" | "age" | "loginId" | "password" | "passwordConfirm", string>>;
 
 function InfoStep({
   role,
@@ -291,7 +291,7 @@ function InfoStep({
   onComplete: (member: Member) => void;
 }) {
   const isGuardian = role === "guardian";
-  const [form, setForm] = useState({ name: "", age: "", loginId: "", password: "", passwordConfirm: "", studentCode: "" });
+  const [form, setForm] = useState({ name: "", age: "", loginId: "", password: "", passwordConfirm: "" });
   const [checkedLoginId, setCheckedLoginId] = useState<string | null>(null);
   const [errors, setErrors] = useState<InfoErrors>({});
 
@@ -323,7 +323,6 @@ function InfoStep({
     else if (!loginIdVerified) next.loginId = "아이디 중복확인을 해 주세요";
     if (form.password.length < 8) next.password = "비밀번호는 8자 이상이어야 해요";
     if (form.passwordConfirm !== form.password || !form.passwordConfirm) next.passwordConfirm = "비밀번호가 일치하지 않아요";
-    if (isGuardian && !form.studentCode.trim()) next.studentCode = "학생 연결 코드를 입력해 주세요";
 
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -334,7 +333,6 @@ function InfoStep({
         name: form.name.trim(),
         role,
         age: isGuardian ? undefined : age,
-        studentCode: isGuardian ? form.studentCode.trim().toUpperCase() : undefined,
       })
     );
   }
@@ -429,18 +427,6 @@ function InfoStep({
           message={error("passwordConfirm")}
         />
 
-        {isGuardian && (
-          <TextField
-            className="mt-[24px]"
-            label="학생 연결 코드"
-            name="studentCode"
-            placeholder="학생 코드를 입력해 주세요"
-            value={form.studentCode}
-            onChange={update("studentCode")}
-            message={error("studentCode")}
-          />
-        )}
-
         <button type="submit" className={`mt-[26px] ${primaryButtonClassName}`}>
           가입하기
         </button>
@@ -460,7 +446,12 @@ function DoneStep({ member }: { member: Member }) {
         {member.role === "student" && member.studentCode && (
           <p className="mt-[6px] rounded-[12px] bg-[#FBF4EC] px-[18px] py-[10px] text-[13px] text-[#6B5446]">
             내 학생 코드 <strong className="ml-1 text-[17px] tracking-[0.2em] text-[#5A4032]">{member.studentCode}</strong>
-            <span className="mt-[2px] block text-[12px] text-[#8A7F76]">보호자가 가입할 때 입력하면 연결돼요 (설정에서 다시 볼 수 있어요)</span>
+            <span className="mt-[2px] block text-[12px] text-[#8A7F76]">보호자가 이 코드로 연결을 요청하면 설정에서 수락할 수 있어요</span>
+          </p>
+        )}
+        {member.role === "guardian" && (
+          <p className="mt-[6px] rounded-[12px] bg-[#FBF4EC] px-[18px] py-[10px] text-[13px] break-keep text-[#6B5446]">
+            로그인한 뒤 계정 관리에서 아이의 학생 코드로 아이를 추가할 수 있어요
           </p>
         )}
       </div>

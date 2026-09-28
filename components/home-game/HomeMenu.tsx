@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { LibraryIcon, PencilIcon, SettingsIcon, StampIcon } from "@/components/icons/menuIcons";
 import SettingsModal from "@/components/settings/SettingsModal";
+import { usePendingLinkRequests } from "@/lib/linkRequests";
+import { useCurrentMember } from "@/lib/session";
 
 type MenuItem = {
   href: string;
@@ -31,6 +33,9 @@ export default function HomeMenu({ onStudyEntry }: HomeMenuProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  // 보호자 연결 요청이 오면 메뉴 버튼과 설정 항목에 빨간 점을 띄운다 (수락·거절은 설정에서).
+  const member = useCurrentMember();
+  const hasLinkRequest = usePendingLinkRequests(member?.role === "student" ? member.studentCode : undefined).length > 0;
 
   useEffect(() => {
     if (!open) return;
@@ -57,11 +62,11 @@ export default function HomeMenu({ onStudyEntry }: HomeMenuProps) {
     >
       <button
         type="button"
-        aria-label={open ? "메뉴 닫기" : "메뉴 열기"}
+        aria-label={open ? "메뉴 닫기" : hasLinkRequest ? "메뉴 열기 (새 보호자 연결 요청)" : "메뉴 열기"}
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => setOpen((prev) => !prev)}
-        className="flex size-[52px] cursor-pointer items-center justify-center rounded-full border border-white/90 bg-white/85 text-[#8B6650] shadow-[0_6px_16px_rgba(107,74,54,0.18)] backdrop-blur-[12px] transition hover:bg-white active:scale-95"
+        className="relative flex size-[52px] cursor-pointer items-center justify-center rounded-full border border-white/90 bg-white/85 text-[#8B6650] shadow-[0_6px_16px_rgba(107,74,54,0.18)] backdrop-blur-[12px] transition hover:bg-white active:scale-95"
       >
         <svg
           viewBox="0 0 24 24"
@@ -85,6 +90,7 @@ export default function HomeMenu({ onStudyEntry }: HomeMenuProps) {
             </>
           )}
         </svg>
+        {hasLinkRequest && !open && <AlertDot className="top-[2px] right-[2px]" />}
       </button>
 
       <nav
@@ -124,12 +130,13 @@ export default function HomeMenu({ onStudyEntry }: HomeMenuProps) {
               }}
               className={`${itemClassName} cursor-pointer`}
             >
-              <span className={iconBadgeClassName}>
+              <span className={`relative ${iconBadgeClassName}`}>
                 <SettingsIcon className="size-5" />
+                {hasLinkRequest && <AlertDot className="-top-[1px] -right-[1px]" />}
               </span>
               <span className="flex flex-col">
                 <span className="text-[15px] font-bold text-[#5A4032]">설정</span>
-                <span className="text-[12px] text-[#8A7F76]">학생 정보 · 로그아웃</span>
+                <span className="text-[12px] text-[#8A7F76]">{hasLinkRequest ? "보호자 연결 요청이 왔어요" : "학생 정보 · 로그아웃"}</span>
               </span>
             </button>
           </li>
@@ -139,4 +146,9 @@ export default function HomeMenu({ onStudyEntry }: HomeMenuProps) {
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
+}
+
+/** 알림 빨간 점 */
+function AlertDot({ className }: { className: string }) {
+  return <span aria-hidden className={`absolute size-[12px] rounded-full bg-[#E5484D] ring-2 ring-white ${className}`} />;
 }
