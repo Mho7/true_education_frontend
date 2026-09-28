@@ -2,6 +2,7 @@
 // 서버 응답(보호자 대시보드·보상판)은 toGuardianHomeData로 이 모양으로 바꾼다.
 
 import type { DashboardResponse, LearningStage, RewardBoardResponse } from "@/lib/api/types";
+import { pendingRewards } from "@/lib/rewardBoard";
 
 export type LearningRecord = {
   id: string;
@@ -39,7 +40,8 @@ export type GuardianHomeData = {
   /** 질문 유형별 결과(서버 판정 그대로) */
   stages: DashboardResponse["byStage"];
   collecting: boolean;
-  reward: { current: number; goal: number; nextName?: string };
+  /** pending: 도장을 다 모았는데 아직 아이에게 전하지 않은 리워드 (오래된 것부터) */
+  reward: { current: number; goal: number; nextName?: string; pending: { milestone: number; name?: string }[] };
   story:
     | { kind: "collecting"; message: string }
     | { kind: "comments"; good: string | null; help: string | null };
@@ -129,6 +131,7 @@ export function toGuardianHomeData({
   const goal = rewards?.stampsPerReward ?? 5;
   const current = rewards ? Math.min(Math.max(goal - (rewards.nextMilestone - rewards.stampTotal), 0), goal) : dashboard.summary.stampTotal % goal;
   const nextName = rewards?.rewards.find((reward) => reward.milestone === rewards.nextMilestone)?.name;
+  const pending = rewards ? pendingRewards(rewards).map(({ milestone, name }) => ({ milestone, name })) : [];
 
   const textsOf = (status: string) => dashboard.comments.filter((comment) => comment.status === status).map((comment) => comment.text);
   const good = [...textsOf("COMFORTABLE"), ...textsOf("NORMAL")];
@@ -144,7 +147,7 @@ export function toGuardianHomeData({
     records,
     stages: dashboard.byStage,
     collecting: dashboard.collecting,
-    reward: { current, goal, nextName },
+    reward: { current, goal, nextName, pending },
     story: dashboard.collecting
       ? { kind: "collecting", message: dashboard.collectingMessage ?? "데이터를 모으고 있어요" }
       : { kind: "comments", good: good.length ? good.join(" ") : null, help: help.length ? help.join(" ") : null },
