@@ -107,14 +107,3 @@ export function useStudyEntryGate() {
   const closeNotice = useCallback(() => setNoticeOpen(false), []);
   return { noticeOpen, blockStudyEntry, closeNotice };
 }
-
-/** 하루 학습 제한 상태만 지운다 (개발용). 스탬프·책장·초안 등 다른 기록은 건드리지 않는다. */
-export function resetDailyStudyForDev() {
-  try {
-    window.localStorage.removeItem(COMPLETED_KEY);
-    window.localStorage.removeItem(NOTICE_SEEN_KEY);
-  } catch {
-    // 저장소를 못 쓰면 지울 것도 없다.
-  }
-  window.dispatchEvent(new Event(CHANGE_EVENT));
-}

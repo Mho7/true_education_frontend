@@ -335,6 +335,12 @@ const STUDENT_ITEMS: ConsentItem[] = [
   },
 ];
 
+/**
+ * 아이에 대한 보호자 동의. 가입 동의 화면에서 필수로 받고, 서버는 아이를 추가(연결 요청)할 때마다
+ * 그 아이 대상으로 기록하므로 계정 관리의 "아이 추가"가 이 항목들을 함께 보낸다.
+ */
+export const CHILD_CONSENT_IDS = ["childPrivacy", "childSpeech", "guardianDashboard"];
+
 export const CONSENT_SCREENS: Record<MemberRole, ConsentScreen> = {
   guardian: {
     title: "서비스 이용을 위한 동의",

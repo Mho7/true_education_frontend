@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { logout } from "@/lib/api/auth";
-import { acceptLinkRequest, removeLinkRequest, usePendingLinkRequests } from "@/lib/linkRequests";
+import { errorMessage } from "@/lib/api/client";
+import { acceptLinkRequest, rejectLinkRequest } from "@/lib/api/student";
+import type { StudentLinkRequest } from "@/lib/api/types";
+import { notifyLinkRequestsChanged, useStudentLinkRequests } from "@/lib/linkRequests";
 import { signOut, useCurrentMember } from "@/lib/session";
 
 type SettingsModalProps = {
@@ -123,7 +126,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           )}
         </dl>
 
-        {!isGuardian && <LinkRequests studentCode={studentCode} studentName={member?.name ?? ""} />}
+        {!isGuardian && <LinkRequests />}
 
         <button
           type="button"
@@ -138,10 +141,27 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
 }
 
 /** 보호자가 학생 코드로 보낸 연결 요청. 수락해야 보호자 대시보드에 이 아이가 보인다 */
-function LinkRequests({ studentCode, studentName }: { studentCode: string | undefined; studentName: string }) {
-  const requests = usePendingLinkRequests(studentCode);
+function LinkRequests() {
+  const requests = useStudentLinkRequests(true);
   const headingId = useId();
   const [acceptedName, setAcceptedName] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function respond(request: StudentLinkRequest, accept: boolean) {
+    if (busyId !== null) return;
+    setBusyId(request.parentId);
+    setError(null);
+    try {
+      await (accept ? acceptLinkRequest(request.parentId) : rejectLinkRequest(request.parentId));
+      if (accept) setAcceptedName(request.parentName);
+      notifyLinkRequestsChanged();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <section aria-labelledby={headingId} className="mt-[14px]">
@@ -160,30 +180,34 @@ function LinkRequests({ studentCode, studentName }: { studentCode: string | unde
       ) : (
         <ul className="mt-[6px] flex flex-col gap-[8px]">
           {requests.map((request) => (
-            <li key={request.id} className="flex items-center gap-[10px] rounded-[12px] border border-[#F3DFC9] bg-[#FBF4EC] py-[10px] pr-[10px] pl-[16px]">
+            <li key={request.parentId} className="flex items-center gap-[10px] rounded-[12px] border border-[#F3DFC9] bg-[#FBF4EC] py-[10px] pr-[10px] pl-[16px]">
               <p className="min-w-0 flex-1 text-[14px] leading-[20px] break-keep text-[#5A4032]">
-                <strong>{request.guardianName}</strong>님이 보호자로 연결하고 싶어 해요
+                <strong>{request.parentName}</strong>님이 보호자로 연결하고 싶어 해요
               </p>
               <button
                 type="button"
-                onClick={() => removeLinkRequest(request.id)}
-                className="h-[38px] shrink-0 cursor-pointer rounded-full border-[1.2px] border-[#D9CFC4] px-[14px] text-[14px] font-medium text-[#7A5A45] transition hover:bg-white"
+                onClick={() => respond(request, false)}
+                disabled={busyId !== null}
+                className="h-[38px] shrink-0 cursor-pointer rounded-full border-[1.2px] border-[#D9CFC4] px-[14px] text-[14px] font-medium text-[#7A5A45] transition hover:bg-white disabled:cursor-default disabled:opacity-60"
               >
                 거절
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  acceptLinkRequest(request.id, studentName);
-                  setAcceptedName(request.guardianName);
-                }}
-                className="h-[38px] shrink-0 cursor-pointer rounded-full bg-[#E87B3D] px-[16px] text-[14px] font-medium text-white transition hover:brightness-105"
+                onClick={() => respond(request, true)}
+                disabled={busyId !== null}
+                className="h-[38px] shrink-0 cursor-pointer rounded-full bg-[#E87B3D] px-[16px] text-[14px] font-medium text-white transition hover:brightness-105 disabled:cursor-default disabled:opacity-60"
               >
                 수락
               </button>
             </li>
           ))}
         </ul>
+      )}
+      {error && (
+        <p role="alert" className="mt-[6px] text-[13px] text-[#D0582A]">
+          {error}
+        </p>
       )}
     </section>
   );

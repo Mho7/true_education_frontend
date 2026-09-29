@@ -21,8 +21,6 @@ export type SignupStudentRequest = SignupBaseRequest & {
 export type SignupStudentResponse = { id: number; studentCode: string };
 
 export type SignupParentRequest = SignupBaseRequest & {
-  /** 학생 가입 시 발급된 6자리 코드(대소문자 구분). 없는 코드면 404 */
-  studentCode: string;
   /** 동의한 항목 id. marketing만 선택이고 나머지(terms·guardianPrivacy·childPrivacy·childSpeech·guardianDashboard)는 필수 */
   agreements: string[];
 };
@@ -98,8 +96,28 @@ export type SaveReadingPageResponse = {
 /** GET /parents/me/students */
 export type LinkedStudent = { studentId: number; name: string };
 
-/** 보호자가 학생 코드로 보낸 연결 요청 중 아이가 아직 수락하지 않은 것. 수락 전에는 아이 이름을 알려 주지 않는다 */
-export type LinkRequest = { requestId: number; studentCode: string; requestedAt: string };
+/** GET·POST /parents/me/link-requests. 아이가 수락하면 목록에서 빠지고 연결된 아이(GET /parents/me/students)가 된다 */
+export type LinkRequest = {
+  studentId: number;
+  /** 수락 전이라 가운데를 가린 이름(예: 김*울) */
+  studentName: string;
+  /** 보호자가 입력한 학생 코드 */
+  studentCode: string;
+  /** REJECTED: 아이가 거절(retryAfter 뒤에 다시 요청할 수 있다) */
+  status: "PENDING" | "REJECTED";
+  requestedAt: string;
+  respondedAt: string | null;
+  retryAfter: string | null;
+};
+
+/** POST /parents/me/link-requests. agreements는 그 아이에 대한 동의(childPrivacy·childSpeech·guardianDashboard 모두 필수) */
+export type CreateLinkRequest = { studentCode: string; agreements: string[] };
+
+/** GET /students/me/link-requests */
+export type StudentLinkRequest = { parentId: number; parentName: string; requestedAt: string };
+
+/** POST /students/me/link-requests/{parentId}/accept·reject */
+export type LinkResponse = { parentId: number; status: "ACCEPTED" | "REJECTED" };
 
 export type DashboardStage = "WHO" | "WHAT" | "WHY" | "EMOTION" | "ORDER";
 
@@ -281,4 +299,28 @@ export type ShelfItem = {
   /** 아이가 그린 표지, 없으면 책 기본 표지(없으면 null) */
   coverImageUrl: string | null;
   completedAt: string;
+};
+
+/** GET /bookshelf/{id} 의 시도 기록. answer는 이해 질문이면 고른 보기 번호, 순서 맞추기면 놓은 카드 id 순서 */
+export type ShelfAttempt = { attemptNumber: number; answer: number | string[]; correct: boolean };
+
+/** GET /bookshelf/{id}. 완료한 책만 열람할 수 있다(아니면 404) */
+export type ShelfBook = ShelfItem & {
+  source: { author: string | null; sourceUrl: string | null; license: string | null; bibliography: string | null };
+  pages: ReadingPage[];
+  glossary: Record<string, string>;
+  questions: {
+    questionId: number;
+    order: number;
+    stage: QuestionStage;
+    text: string;
+    options: string[];
+    /** 정답 보기 번호 */
+    answer: number;
+    /** 차수 순 */
+    attempts: ShelfAttempt[];
+  }[];
+  /** 순서 맞추기가 없는 책은 null. cards는 정답 순서 */
+  ordering: { questionId: number; text: string; cards: { id: string; text: string }[]; attempts: ShelfAttempt[] } | null;
+  reflection: { transcript: string; durationMs: number } | null;
 };

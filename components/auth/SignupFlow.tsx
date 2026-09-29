@@ -282,7 +282,7 @@ function ConsentStep({
 const MIN_AGE = 3;
 const MAX_AGE = 19;
 
-type InfoErrors = Partial<Record<"name" | "age" | "loginId" | "password" | "passwordConfirm" | "studentCode", string>>;
+type InfoErrors = Partial<Record<"name" | "age" | "loginId" | "password" | "passwordConfirm", string>>;
 
 function InfoStep({
   role,
@@ -296,7 +296,7 @@ function InfoStep({
   onComplete: (member: Member) => void;
 }) {
   const isGuardian = role === "guardian";
-  const [form, setForm] = useState({ name: "", age: "", loginId: "", password: "", passwordConfirm: "", studentCode: "" });
+  const [form, setForm] = useState({ name: "", age: "", loginId: "", password: "", passwordConfirm: "" });
   const [checkedLoginId, setCheckedLoginId] = useState<string | null>(null);
   const [checkingLoginId, setCheckingLoginId] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -339,20 +339,18 @@ function InfoStep({
     else if (!loginIdVerified) next.loginId = "아이디 중복확인을 해 주세요";
     if (form.password.length < 8) next.password = "비밀번호는 8자 이상이어야 해요";
     if (form.passwordConfirm !== form.password || !form.passwordConfirm) next.passwordConfirm = "비밀번호가 일치하지 않아요";
-    if (isGuardian && !form.studentCode.trim()) next.studentCode = "학생 연결 코드를 입력해 주세요";
 
     setErrors(next);
     setFormError(null);
     if (Object.keys(next).length > 0 || submitting) return;
 
     const base = { name: form.name.trim(), loginId: form.loginId.trim(), password: form.password };
-    // 학생 코드는 대소문자를 구분하므로 입력한 그대로 보낸다.
-    const studentCode = form.studentCode.trim();
     setSubmitting(true);
     try {
       if (isGuardian) {
-        await signupParent({ ...base, studentCode, agreements: signupAgreements(role, agreedIds) });
-        onComplete({ loginId: base.loginId, name: base.name, role, studentCode });
+        // 아이 연결은 가입 뒤 계정 관리에서 학생 코드로 요청한다.
+        await signupParent({ ...base, agreements: signupAgreements(role, agreedIds) });
+        onComplete({ loginId: base.loginId, name: base.name, role });
       } else {
         const created = await signupStudent({ ...base, age, agreements: signupAgreements(role, agreedIds) });
         onComplete({ loginId: base.loginId, name: base.name, role, age, studentCode: created.studentCode });
@@ -361,8 +359,6 @@ function InfoStep({
       if (error instanceof ApiError && error.status === 409) {
         setCheckedLoginId(null);
         setErrors({ loginId: "이미 사용 중인 아이디예요" });
-      } else if (error instanceof ApiError && error.status === 404) {
-        setErrors({ studentCode: "일치하는 학생 코드가 없어요. 대소문자까지 확인해 주세요" });
       } else {
         setFormError(errorMessage(error));
       }
@@ -462,18 +458,6 @@ function InfoStep({
           message={error("passwordConfirm")}
         />
 
-        {isGuardian && (
-          <TextField
-            className="mt-[24px]"
-            label="학생 연결 코드"
-            name="studentCode"
-            placeholder="학생 코드를 입력해 주세요"
-            value={form.studentCode}
-            onChange={update("studentCode")}
-            message={error("studentCode")}
-          />
-        )}
-
         {formError && (
           <p role="alert" className="mt-[16px] text-center text-[12px] text-[#D0582A]">
             {formError}
@@ -503,7 +487,12 @@ function DoneStep({ member }: { member: Member }) {
         {member.role === "student" && member.studentCode && (
           <p className="mt-[6px] rounded-[12px] bg-[#FBF4EC] px-[18px] py-[10px] text-[13px] text-[#6B5446]">
             내 학생 코드 <strong className="ml-1 text-[17px] tracking-[0.2em] text-[#5A4032]">{member.studentCode}</strong>
-            <span className="mt-[2px] block text-[12px] text-[#8A7F76]">보호자가 가입할 때 입력하면 연결돼요 (설정에서 다시 볼 수 있어요)</span>
+            <span className="mt-[2px] block text-[12px] text-[#8A7F76]">보호자가 이 코드로 연결을 요청하면 설정에서 수락할 수 있어요</span>
+          </p>
+        )}
+        {member.role === "guardian" && (
+          <p className="mt-[6px] rounded-[12px] bg-[#FBF4EC] px-[18px] py-[10px] text-[13px] break-keep text-[#6B5446]">
+            로그인한 뒤 계정 관리에서 아이의 학생 코드로 아이를 추가할 수 있어요
           </p>
         )}
       </div>

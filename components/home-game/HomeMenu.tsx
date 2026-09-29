@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { LibraryIcon, PencilIcon, SettingsIcon, StampIcon } from "@/components/icons/menuIcons";
 import SettingsModal from "@/components/settings/SettingsModal";
-import { usePendingLinkRequests } from "@/lib/linkRequests";
+import { useStudentLinkRequests } from "@/lib/linkRequests";
 import { useCurrentMember } from "@/lib/session";
 
 type MenuItem = {
@@ -35,7 +35,7 @@ export default function HomeMenu({ onStudyEntry }: HomeMenuProps) {
   const menuId = useId();
   // 보호자 연결 요청이 오면 메뉴 버튼과 설정 항목에 빨간 점을 띄운다 (수락·거절은 설정에서).
   const member = useCurrentMember();
-  const hasLinkRequest = usePendingLinkRequests(member?.role === "student" ? member.studentCode : undefined).length > 0;
+  const hasLinkRequest = useStudentLinkRequests(member?.role === "student").length > 0;
 
   useEffect(() => {
     if (!open) return;

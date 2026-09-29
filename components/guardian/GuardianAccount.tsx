@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { getMe, logout } from "@/lib/api/auth";
-import { errorMessage } from "@/lib/api/client";
+import { ApiError, errorMessage } from "@/lib/api/client";
 import { cancelLinkRequest, getLinkedStudents, getLinkRequests, requestStudentLink } from "@/lib/api/parents";
 import type { LinkRequest } from "@/lib/api/types";
 import { signOut, useCurrentMember } from "@/lib/session";
+import { CHILD_CONSENT_IDS } from "@/lib/signupConsents";
 import { GuardianPage, useLinkedStudents } from "./GuardianShell";
 import { UsersIcon } from "./guardianIcons";
 import { ActionButton, Empty, Panel, StatusCard } from "./guardianUi";
@@ -100,12 +101,14 @@ function LinkedChildrenPanel() {
     setBusy(true);
     setMessage(null);
     try {
-      await requestStudentLink(code);
+      // 학생 코드는 대소문자를 구분하므로 앞뒤 공백만 지운다. 아이 관련 동의는 가입 때 받은 것을 함께 보낸다.
+      await requestStudentLink({ studentCode: code.trim(), agreements: CHILD_CONSENT_IDS });
       setCode("");
       setMessage({ tone: "success", text: "연결을 요청했어요. 아이가 설정에서 수락하면 연결돼요." });
       reloadLinks();
     } catch (caught) {
-      setMessage({ tone: "error", text: errorMessage(caught) });
+      const text = caught instanceof ApiError && caught.status === 404 ? "일치하는 학생 코드가 없어요. 대소문자까지 확인해 주세요." : errorMessage(caught);
+      setMessage({ tone: "error", text });
     } finally {
       setBusy(false);
     }
@@ -163,7 +166,7 @@ function LinkedChildrenPanel() {
               </li>
             ))}
             {pending.map((request) => (
-              <PendingRow key={request.requestId} request={request} onCancelled={reloadLinks} />
+              <PendingRow key={request.studentId} request={request} onCancelled={reloadLinks} />
             ))}
           </ul>
         )}
@@ -172,7 +175,7 @@ function LinkedChildrenPanel() {
   );
 }
 
-/** 아이가 아직 수락하지 않은 요청. 아이 이름은 수락 전에는 모르므로 학생 코드로 보여 준다 */
+/** 아이가 아직 수락하지 않았거나 거절한 요청. 수락 전에는 이름 가운데가 가려져 오므로 학생 코드와 함께 보여 준다 */
 function PendingRow({ request, onCancelled }: { request: LinkRequest; onCancelled: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +185,7 @@ function PendingRow({ request, onCancelled }: { request: LinkRequest; onCancelle
     setBusy(true);
     setError(null);
     try {
-      await cancelLinkRequest(request.requestId);
+      await cancelLinkRequest(request.studentId);
       onCancelled();
     } catch (caught) {
       setError(errorMessage(caught));
@@ -190,24 +193,43 @@ function PendingRow({ request, onCancelled }: { request: LinkRequest; onCancelle
     }
   }
 
+  const rejected = request.status === "REJECTED";
   return (
-    <li className="rounded-[14px] border border-[#FCE3C8] bg-[#FFF8F1] px-[14px] py-[12px]">
+    <li className={`rounded-[14px] border px-[14px] py-[12px] ${rejected ? "border-[#EEF0F3] bg-[#F7F8FA]" : "border-[#FCE3C8] bg-[#FFF8F1]"}`}>
       <div className="flex items-center gap-[12px]">
-        <span className="flex size-[36px] shrink-0 items-center justify-center rounded-[10px] bg-[#FFEBD6] text-[#D9730D]">
+        <span className={`flex size-[36px] shrink-0 items-center justify-center rounded-[10px] ${rejected ? "bg-[#EEF0F3] text-[#8A909C]" : "bg-[#FFEBD6] text-[#D9730D]"}`}>
           <UsersIcon className="size-[20px]" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[16px] font-semibold tracking-[0.08em]">{request.studentCode}</span>
-          <span className="text-[13px] text-[#8A909C]">아이가 수락하면 연결돼요</span>
+          <span className="truncate text-[16px] font-semibold">
+            {request.studentName} <span className="ml-[4px] text-[14px] font-medium tracking-[0.08em] text-[#8A909C]">{request.studentCode}</span>
+          </span>
+          <span className="text-[13px] text-[#8A909C]">
+            {rejected
+              ? request.retryAfter
+                ? `${formatRetryAfter(request.retryAfter)}부터 다시 요청할 수 있어요`
+                : "다시 요청할 수 있어요"
+              : "아이가 수락하면 연결돼요"}
+          </span>
         </span>
-        {/* 주황 동그라미 = 아이의 수락을 기다리는 중 */}
-        <span className="flex shrink-0 items-center gap-[6px] text-[13px] font-semibold text-[#C2610C]">
-          <span aria-hidden className="size-[10px] rounded-full bg-[#F59E0B] ring-[3px] ring-[#FDEFD8]" />
-          대기중
-        </span>
-        <button type="button" onClick={handleCancel} disabled={busy} className={smallButton}>
-          {busy ? "취소 중…" : "요청 취소"}
-        </button>
+        {rejected ? (
+          // 회색 동그라미 = 아이가 거절함
+          <span className="flex shrink-0 items-center gap-[6px] text-[13px] font-semibold text-[#6B7280]">
+            <span aria-hidden className="size-[10px] rounded-full bg-[#A3A8B2] ring-[3px] ring-[#EEF0F3]" />
+            거절됨
+          </span>
+        ) : (
+          <>
+            {/* 주황 동그라미 = 아이의 수락을 기다리는 중 */}
+            <span className="flex shrink-0 items-center gap-[6px] text-[13px] font-semibold text-[#C2610C]">
+              <span aria-hidden className="size-[10px] rounded-full bg-[#F59E0B] ring-[3px] ring-[#FDEFD8]" />
+              대기중
+            </span>
+            <button type="button" onClick={handleCancel} disabled={busy} className={smallButton}>
+              {busy ? "취소 중…" : "요청 취소"}
+            </button>
+          </>
+        )}
       </div>
       {error && (
         <p role="alert" className="mt-[6px] text-[13px] text-[#C4472F]">
@@ -216,4 +238,9 @@ function PendingRow({ request, onCancelled }: { request: LinkRequest; onCancelle
       )}
     </li>
   );
+}
+
+function formatRetryAfter(iso: string) {
+  const date = new Date(iso);
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}시`;
 }

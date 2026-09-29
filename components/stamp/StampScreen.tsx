@@ -2,11 +2,9 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
-import StampDevPanel from "./StampDevPanel";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { Anchor, useElementSize, type Scale } from "@/components/stage/Anchor";
 import { getMyRewards, getMyStamps } from "@/lib/api/student";
-import { useDevStampCount } from "@/lib/stamps";
 import { isRewardStamp } from "@/lib/rewards";
 import RewardModal from "./RewardModal";
 import { RewardStampEmpty, RewardStampFilled } from "./RewardStamp";
@@ -39,12 +37,11 @@ function stampRotation(index: number) {
 }
 
 export default function StampScreen() {
-  // 책을 완료하면 서버가 도장 1~2개를 적립한다(보물상자는 그 수를 보여 준다). 개발 모드에서는 더미 도장을 더해 보여 준다.
+  // 책을 완료하면 서버가 도장 1~2개를 적립한다(보물상자는 그 수를 보여 준다).
   const [serverStamps, setServerStamps] = useState<number | null>(null);
   /** 도장 번호(5, 10, …) → 보호자가 정한 보상 */
   const [rewards, setRewards] = useState<Record<number, string>>({});
-  const devStamps = useDevStampCount();
-  const stampCount = (serverStamps ?? 0) + (process.env.NODE_ENV === "development" ? devStamps : 0);
+  const stampCount = serverStamps ?? 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -205,7 +202,6 @@ export default function StampScreen() {
           rewardName={openReward === null ? undefined : rewards[openReward]}
           onClose={closeReward}
         />
-        <StampDevPanel />
       </div>
     </main>
   );

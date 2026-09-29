@@ -28,7 +28,7 @@ export const GAME_DEBUG = {
   /** true면 충돌 검사를 완전히 건너뛰고 이동만 검증한다 */
   disableCollision: false,
   /** GLB 로드 시 animation clip / mesh / skeleton 정보를 1회 콘솔에 출력 */
-  logGLB: true,
+  logGLB: false,
   /** 매 프레임 이동 벡터를 콘솔에 출력 (input 상태가 바뀔 때만) */
   logMovement: false,
   /** 충돌 판정 결과가 바뀔 때만 콘솔에 출력 */

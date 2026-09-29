@@ -4,12 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import BookCover, { BOOK_HEIGHT, BOOK_WIDTH } from "@/components/library/BookCover";
-import BookshelfDevPanel from "@/components/library/BookshelfDevPanel";
+import OpenBook from "@/components/library/OpenBook";
 import { Anchor, useElementSize, type Scale } from "@/components/stage/Anchor";
 import SideNav, { useSideNavWidth } from "@/components/nav/SideNav";
 import { errorMessage, isApiError } from "@/lib/api/client";
 import { getBookshelf } from "@/lib/api/student";
-import { bookThemeFor, useDevBooks, type CompletedBook } from "@/lib/bookshelf";
+import { bookThemeFor, type CompletedBook } from "@/lib/bookshelf";
 
 // 좌표는 책장 배경 그림(ABCD.png, 1671×941) 기준이다. 그림 전체가 사이드바 오른쪽 영역에 꽉 맞는다.
 const STAGE_WIDTH = 1671;
@@ -31,7 +31,6 @@ type ShelfState = { status: "loading" } | { status: "error"; message: string; ne
 export default function LibraryScreen() {
   const [shelfState, setShelfState] = useState<ShelfState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const devBooks = useDevBooks();
 
   // 서버 책장(최근 순)을 불러와 오래된 책부터 꽂는다.
   useEffect(() => {
@@ -41,6 +40,7 @@ export default function LibraryScreen() {
         if (cancelled) return;
         const books = [...items].reverse().map<CompletedBook>((item) => ({
           id: `assignment-${item.assignmentId}`,
+          assignmentId: item.assignmentId,
           title: item.title,
           completedAt: item.completedAt,
           theme: bookThemeFor(item.assignmentId),
@@ -56,13 +56,13 @@ export default function LibraryScreen() {
     };
   }, [attempt]);
 
-  const serverBooks = shelfState.status === "loaded" ? shelfState.books : [];
-  const books = process.env.NODE_ENV === "development" ? [...serverBooks, ...devBooks] : serverBooks;
+  const books = shelfState.status === "loaded" ? shelfState.books : [];
   const sideNavWidth = useSideNavWidth();
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
   const totalShelves = Math.max(1, Math.ceil(books.length / BOOKS_PER_SHELF));
   // null이면 가장 최근 책이 있는 마지막 칸을 보여준다.
   const [selectedShelf, setSelectedShelf] = useState<number | null>(null);
+  const [openedBook, setOpenedBook] = useState<CompletedBook | null>(null);
   const shelf = Math.min(selectedShelf ?? totalShelves - 1, totalShelves - 1);
 
   const shelfBooks = books.slice(shelf * BOOKS_PER_SHELF, (shelf + 1) * BOOKS_PER_SHELF);
@@ -99,7 +99,7 @@ export default function LibraryScreen() {
                   <Anchor x={slotLeft(index)} y={SLOT_TOP} scale={scale} size={BOOK_SCALE}>
                     {/* 한 권씩 위에서 꽂혀 들어오는 느낌으로 순서대로 나타난다 */}
                     <div className="animate-shelve" style={{ animationDelay: `${index * 70}ms` }}>
-                      <BookOnShelf book={book} />
+                      <BookOnShelf book={book} onOpen={() => setOpenedBook(book)} />
                     </div>
                   </Anchor>
                 </li>
@@ -153,8 +153,9 @@ export default function LibraryScreen() {
             </Anchor>
           </>
         )}
-        <BookshelfDevPanel />
       </div>
+
+      <OpenBook book={openedBook} onClose={() => setOpenedBook(null)} />
     </main>
   );
 }
@@ -188,12 +189,12 @@ function ShelfPageButton({
   );
 }
 
-function BookOnShelf({ book }: { book: CompletedBook }) {
+function BookOnShelf({ book, onOpen }: { book: CompletedBook; onOpen: () => void }) {
   return (
-    // 책 자체가 "다시 읽어보기" 버튼이다. 올리면 살짝 꺼내지는 느낌으로 들린다.
-    // TODO: 책 읽기(뷰어) 화면이 생기면 해당 책으로 이동시킨다.
+    // 책 자체가 "다시 읽어보기" 버튼이다. 올리면 살짝 꺼내지는 느낌으로 들리고, 누르면 책이 펼쳐진다.
     <button
       type="button"
+      onClick={onOpen}
       aria-label={`${book.title} 다시 읽어보기`}
       title="다시 읽어보기"
       className="group relative block cursor-pointer text-left"

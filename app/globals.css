@@ -268,3 +268,21 @@ input[type="number"] {
     animation: none;
   }
 }
+
+/* 서재 펼친 책: 종이 한 장이 책등을 축으로 넘어간다 */
+@keyframes page-turn-next {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(-180deg);
+  }
+}
+@keyframes page-turn-prev {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(180deg);
+  }
+}

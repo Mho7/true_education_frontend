@@ -12,7 +12,6 @@ import type { InteractionZone } from "@/lib/roomColliders";
 import { GAME_DEBUG } from "@/lib/gameConfig";
 import { takeHomeCompletionNotice, useStudyEntryGate } from "@/lib/dailyStudy";
 import DailyStudyCompleteModal from "@/components/study/DailyStudyCompleteModal";
-import DailyStudyDevControls from "@/components/dev/DailyStudyDevControls";
 
 /** 홈 화면이 먼저 보인 뒤 오늘 학습 완료 안내가 뜨기까지 */
 const COMPLETION_NOTICE_DELAY = 400;
@@ -65,9 +64,6 @@ export default function HomeGame() {
 
       {/* Layer 5 */}
       <HomeMenu onStudyEntry={blockStudyEntry} />
-
-      {/* 개발용: 오늘 학습 제한 초기화 */}
-      {process.env.NODE_ENV === "development" && <DailyStudyDevControls />}
 
       <DailyStudyCompleteModal
         open={noticeOpen || autoNoticeOpen}

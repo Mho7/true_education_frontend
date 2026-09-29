@@ -1,7 +1,5 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-
 /** 보물상자에서 스탬프 2개가 나올 확률 (서버가 알려 준 수가 없을 때만 쓴다) */
 export const DOUBLE_STAMP_CHANCE = 0.2;
 
@@ -33,44 +31,4 @@ export function takeEarnedStamps(): 1 | 2 | null {
   } catch {
     return null;
   }
-}
-
-// 개발용 더미 스탬프(StampDevPanel). 개발 모드에서만 서버 스탬프 수에 더해 화면에 보여 준다.
-const STORAGE_KEY = "yeoul.stamps.v1";
-const CHANGE_EVENT = "yeoul:stamps-change";
-
-function readCount(): number {
-  try {
-    return Math.max(0, Number(window.localStorage.getItem(STORAGE_KEY) ?? 0) || 0);
-  } catch {
-    return 0;
-  }
-}
-
-function subscribe(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener(CHANGE_EVENT, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(CHANGE_EVENT, onChange);
-  };
-}
-
-/** 개발용 더미 스탬프 수 */
-export function useDevStampCount(): number {
-  return useSyncExternalStore(subscribe, readCount, () => 0);
-}
-
-function writeCount(count: number) {
-  window.localStorage.setItem(STORAGE_KEY, String(count));
-  window.dispatchEvent(new Event(CHANGE_EVENT));
-}
-
-export function addStamps(count: number) {
-  writeCount(readCount() + count);
-}
-
-/** 스탬프를 비운다 (개발용) */
-export function clearStamps() {
-  writeCount(0);
 }

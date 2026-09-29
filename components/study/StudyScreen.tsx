@@ -8,7 +8,6 @@ import { useElementSize } from "@/components/stage/Anchor";
 import { lessonHref } from "@/lib/studyLessons";
 import { markBookIntroSeen, useBookIntroSeen, useClearedLessons, useTreasureState } from "@/lib/studyProgress";
 import BookIntro from "./BookIntro";
-import StudyDevPanel from "./StudyDevPanel";
 import { Fox, NextArrow, SpeechBubble } from "./StudyParts";
 import TreasureScene from "./TreasureScene";
 import {
@@ -351,7 +350,6 @@ export default function StudyScreen({ bookTitle }: { bookTitle: string }) {
         {showIntro && <BookIntro title={bookTitle} onDone={markBookIntroSeen} />}
       </div>
 
-      <StudyDevPanel />
     </main>
   );
 }
